@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} · 解析中</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1c2128;--dim:#6b7380;--line:#e1e5ea;--accent:#2563eb;--bad:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1318;--panel:#171c23;--ink:#dde3ea;--dim:#8d97a5;--line:#2a323d;--accent:#6c9bff;--bad:#f87171}}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.box{max-width:560px;margin:14vh auto;padding:24px 28px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+h1{font-size:18px;margin:0 0 4px;word-break:break-word}.dim{color:var(--dim)}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none!important}
+.bar{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:16px 0 8px}.bar i{display:block;height:100%;width:2%;background:var(--accent);transition:width .3s}
+.err{color:var(--bad);white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="box">
+  <p><a href="/">← 会话列表</a></p>
+  <h1>{{NAME}}</h1>
+  <p class="dim">{{TOOL}} · 会话文件合计 {{SIZE}}</p>
+  <div class="bar"><i id="bar"></i></div>
+  <div id="msg">正在解析…大会话需要几十秒，不是卡死。</div>
+  <div class="dim" id="sub"></div>
+  <div class="err" id="err" role="alert"></div>
+  <p><a href="" id="retry" hidden>重试</a></p>
+</div>
+<script>
+'use strict';
+const KEY = '{{KEY}}';
+const $ = id => document.getElementById(id);
+async function poll() {
+  try {
+    const r = await fetch('/api/job/' + KEY, {cache: 'no-store'});
+    const j = await r.json();
+    if (j.state === 'running') {
+      const pct = j.total ? Math.min(99, Math.round(j.done / j.total * 100)) : 0;
+      $('bar').style.width = Math.max(2, pct) + '%';
+      $('msg').textContent = j.label + ' · ' + pct + '%';
+      $('sub').textContent = (j.done / 1e6).toFixed(0) + ' / ' + (j.total / 1e6).toFixed(0) + ' MB · 已用 ' + j.elapsed + ' 秒';
+    } else if (j.state === 'done') {
+      $('bar').style.width = '100%';
+      $('msg').textContent = j.cached ? '使用缓存，正在打开…' : '解析完成，正在打开…';
+      location.replace('/r/' + KEY);
+      return;
+    } else if (j.state === 'error') {
+      $('err').innerHTML = '';
+      $('err').textContent = '解析失败：' + j.error;
+      $('retry').hidden = false;
+      $('msg').textContent = '';
+      return;
+    }
+  } catch (e) { $('sub').textContent = '连接服务失败，请确认 agent-replay serve 仍在运行。'; }
+  setTimeout(poll, 400);
+}
+fetch('/api/open/' + KEY, {cache: 'no-store'}).then(() => poll()).catch(() => poll());
+</script>
+</body>
+</html>

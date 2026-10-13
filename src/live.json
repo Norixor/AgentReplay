@@ -1,0 +1,15 @@
+{
+  "_说明": "实时监控的阈值，改完无需重启（按文件修改时间重新读取）。时间单位为秒，ctxLimit 是上下文压缩点（token）。",
+  "ctxLimit": 400000,
+  "ctxLimitCodex": 400000,
+  "idleSec": 300,
+  "endedSec": 600,
+  "longCmdSec": 600,
+  "subStepLimit": 150,
+  "hookRecentSec": 600,
+  "failStreak": 3,
+  "staleSubSec": 3600,
+  "releaseSec": 1800,
+  "pollSec": 5,
+  "slowPollSec": 60
+}

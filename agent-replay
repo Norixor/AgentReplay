@@ -1,0 +1,4 @@
+#!/bin/sh
+# Thin launcher: all logic lives in src/cli.py.
+dir=$(cd "$(dirname "$0")" && pwd)
+exec python3 "$dir/src/cli.py" "$@"

@@ -1,0 +1,8 @@
+# Exported pages, caches and demo data contain (or are derived from) session content
+replays/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+/.claude/

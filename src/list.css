@@ -1,0 +1,23 @@
+.lfilters{position:static;margin-top:16px}
+/* Long project paths in <option> would otherwise size the select past the viewport. */
+.lfilters select{max-width:100%}#f-proj{width:min(100%,520px);text-overflow:ellipsis}
+.lfilters button,#more{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 12px;cursor:pointer}
+.lfilters button:hover,#more:hover{background:var(--accent-soft)}
+.lfilters input[type=date]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.ltbl th{cursor:pointer;user-select:none}.ltbl th.on::after{content:" ▼";font-size:10px}.ltbl th.on.asc::after{content:" ▲"}
+.ltbl tbody tr{cursor:pointer}.ltbl tbody tr:hover{background:var(--accent-soft)}
+.ltbl td{vertical-align:top}.ltbl .nm{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ltbl .nm a{color:var(--ink);font-weight:600}.ltbl .nm.un a{color:var(--dim);font-weight:400}
+.ltbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.ltbl .t{white-space:nowrap;font-variant-numeric:tabular-nums}
+.ltbl .proj{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st{display:inline-block;padding:0 7px;border-radius:9px;font-size:12px;line-height:19px;background:var(--code);color:var(--dim)}
+.st-active{background:var(--ok);color:#fff}
+@media (max-width:900px){.ltbl .proj{display:none}}
+
+.ltbl tbody tr.is-active td{background:var(--accent-soft)}
+.ltbl tbody tr.is-active td:first-child{box-shadow:inset 3px 0 0 var(--good)}
+.ltbl .livecell{white-space:nowrap}.subn{font-size:12px;color:var(--dim);margin-left:4px}
+.ltbl th:focus-visible{outline-offset:-2px}
+.ltbl .cp{opacity:.45}.ltbl tr:hover .cp,.ltbl .cp:focus-visible{opacity:1}
+.ltbl .num{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){.ltbl .nm{max-width:46vw}.lfilters label{flex:1 1 100%;display:flex;gap:6px;align-items:center}.lfilters label select,.lfilters label input[type=date]{flex:1 1 0;min-width:0;width:0;max-width:none}#f-proj{width:0}}

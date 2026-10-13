@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} · 会话回看</title>
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    {{BACK}}
+    <div class="brand" id="brand">会话回看</div>
+    <nav id="nav" aria-label="视图" role="tablist">
+      <a href="#overview" data-v="overview">总览</a>
+      <a href="#timeline" data-v="timeline">时间线</a>
+      <a href="#main" data-v="main">主代理回看</a>
+      <a href="#agents" data-v="agents">子代理</a>
+    </nav>
+    <button type="button" id="ordbtn" class="ordbtn" title="切换所有列表的排序方向"></button>
+  </div>
+</header>
+<main id="app"></main>
+<div id="tip" class="tip" hidden></div>
+<script id="data" type="application/json">{{DATA}}</script>
+<script>
+{{JS}}
+</script>
+</body>
+</html>

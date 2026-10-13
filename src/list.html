@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>会话回放</title>
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand" style="cursor:default">会话回放</div>
+    <span class="dim" id="meta"></span>
+  </div>
+</header>
+<main id="app">
+  <div class="fbar lfilters">
+    <label>来源 <select id="f-tool"><option value="">全部</option><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
+    <label>项目 <select id="f-proj"><option value="">全部</option></select></label>
+    <label>状态 <select id="f-status"><option value="">全部</option><option value="active">进行中</option><option value="archived">已归档</option><option value="idle">普通</option></select></label>
+    <label>最后更新 <input type="date" id="f-from"> 至 <input type="date" id="f-to"></label>
+    <input type="search" class="q" id="f-q" placeholder="按名称关键词筛选…">
+    <button id="clear" type="button" title="清除所有筛选条件">清除筛选</button>
+    <button id="refresh" title="重新扫描所有会话文件">刷新</button>
+    <span class="fcount dim" id="count"></span>
+  </div>
+  <p class="dim note" id="auto"></p>
+  <div id="state" class="empty" hidden></div>
+  <div class="tblwrap"><table class="tbl ltbl"><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="empty" id="empty" hidden><b>没有符合条件的会话</b><span>放宽筛选条件，或点「清除筛选」。</span></div>
+  <p><button id="more" hidden>显示更多</button></p>
+</main>
+<script>
+{{JS}}
+</script>
+</body>
+</html>
