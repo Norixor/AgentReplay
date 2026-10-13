@@ -11,5 +11,8 @@
   "staleSubSec": 3600,
   "releaseSec": 1800,
   "pollSec": 5,
-  "slowPollSec": 60
+  "slowPollSec": 60,
+  "returnedKeepSec": 600,
+  "graphMaxNodes": 40,
+  "graphFadeSec": 60
 }

@@ -105,10 +105,13 @@ class CodexFeed:
             u = info.get("last_token_usage") or {}
             inp, cached, cw = u.get("input_tokens", 0) or 0, u.get("cached_input_tokens", 0) or 0, u.get("cache_write_input_tokens", 0) or 0
             out = u.get("output_tokens", 0) or 0
-            uu = [max(0, inp - cached - cw), out, cw, cached]
-            pr = prices.lookup("codex", st.model)[1]
-            st.add_cost(ts, prices.cost(pr, uu), uu[0] + uu[1] + uu[2])
+            pr = prices.codex_step(st.model, {"in": inp, "cached": cached, "cw": cw, "out": out, "rsn": u.get("reasoning_output_tokens", 0) or 0})
+            if pr["cost"] is None:
+                lv.unpriced.add(st.model or "(unknown)")
+            st.add_cost(ts, pr["cost"] or 0.0, prices.tok_total(pr["tok"]))
+            prices.add_tok(st.tok, pr["tok"])
             st.steps += 1
+            st.step_ts.append(ts)
             st.ctx = inp
             st.window = info.get("model_context_window") or 0
             st.cur = None  # the next call opens the next step record

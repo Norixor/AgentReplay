@@ -6,6 +6,7 @@ import threading
 
 import prices
 from common import classify_bash, merge_kind, ts_ms
+from prices import add_tok, tok_total, zero_tok
 from live import WINDOW_MS, AgentState
 from parse import categorize, classify_text, family, summarize
 
@@ -78,7 +79,8 @@ class ClaudeFeed:
             st.ids.add(mid)
             st.steps = len(st.ids)
             st.new_step(ts)
-            st.msg[mid] = [ts, 0.0, 0]
+            st.msg[mid] = [ts, 0.0, zero_tok()]   # ts, amount and token vector already counted for this message
+            st.step_ts.append(ts)
             if len(st.msg) > 48:
                 for k in list(st.msg)[:16]:
                     del st.msg[k]
@@ -88,17 +90,20 @@ class ClaudeFeed:
             st.effort = r["effort"]
         u = m.get("usage")
         if u and mid in st.msg:
-            uu = [u.get("input_tokens", 0) or 0, u.get("output_tokens", 0) or 0,
-                  u.get("cache_creation_input_tokens", 0) or 0, u.get("cache_read_input_tokens", 0) or 0]
-            fam = family(st.model)
-            q = prices.cost(prices.load("claude")["models"].get(fam), uu)
-            tk = uu[0] + uu[1] + uu[2]
+            pr = prices.claude_step(st.model, u)
+            if pr["cost"] is None:
+                lv.unpriced.add(st.model or "(unknown)")
             acc = st.msg[mid]
-            if q > acc[1] or tk > acc[2]:
-                st.add_cost(acc[0], max(0.0, q - acc[1]), max(0, tk - acc[2]))
-                acc[1], acc[2] = max(q, acc[1]), max(tk, acc[2])
-            if uu[1] > 0 or not st.ctx:
-                st.ctx = uu[0] + uu[2] + uu[3]
+            # A message is written block by block with growing usage: count only what is new since the last row.
+            new = {k: max(acc[2][k], pr["tok"][k]) for k in acc[2]}
+            delta = {k: new[k] - acc[2][k] for k in new}
+            add_tok(st.tok, delta)
+            dq, dt = max(0.0, (pr["cost"] or 0.0) - acc[1]), tok_total(delta)
+            if dq or dt:
+                st.add_cost(acc[0], dq, dt)
+            acc[1], acc[2] = max(pr["cost"] or 0.0, acc[1]), new
+            if pr["tok"]["out"] > 0 or not st.ctx:
+                st.ctx = pr["tok"]["in"] + pr["tok"]["cw5"] + pr["tok"]["cw1"] + pr["tok"]["cr"]
         step = st.cur
         for b in m.get("content") or []:
             bt = b.get("type")
@@ -145,6 +150,10 @@ class ClaudeFeed:
             step["why"] = why
         if name in ("Agent", "Task"):
             lv.tu_owner[b.get("id")] = st.id
+            lines = [l.strip() for l in str(inp.get("prompt") or "").split("\n") if l.strip()]
+            lv.briefs[b.get("id")] = {"lines": [l[:160] for l in lines[:2]], "why": next((l[:240] for l in lines if l.startswith("选档理由")), "")}
+            if len(lv.briefs) > 300:
+                del lv.briefs[next(iter(lv.briefs))]
             extra = "（%s%s）" % (inp.get("model") or "", "·" + inp["effort"] if inp.get("effort") else "") if inp.get("model") else ""
             lv.add_event(ts, "dispatch", st.id, "派单：%s%s" % (call["desc"] or call["sum"], extra), tool=name)
 

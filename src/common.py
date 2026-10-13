@@ -8,6 +8,8 @@ import re
 import time
 from datetime import datetime
 
+from prices import add_tok, tok_total, zero_tok
+
 CATS = ["read", "test", "write", "git", "wait", "agent", "other"]
 LONG_MS = 60_000
 
@@ -123,19 +125,32 @@ def merge_kind(cmd, cwd=""):
 def finish_agent(aid, turns, steps, stamps, brief, meta, ctx):
     meta = meta or {}
     fam_of = ctx["family"]
-    by_fam, by_cat, tok = {}, {c: {"c": 0.0, "t": 0, "n": 0} for c in CATS}, [0, 0, 0, 0]
+    codex = bool(ctx.get("codex"))
+    by_fam, tok = {}, zero_tok(codex)
+    by_cat = {c: {"c": 0.0, "t": 0, "n": 0, "tok": zero_tok(codex)} for c in CATS}
     cost = 0.0
+    n_unp = n_local = n_fast = 0
+    unp_models = set()
     hooks = long_t = long_n = test_t = wait_t = 0
     report, rsrc = None, ""
     last_text = ""
     for s in steps:
-        cost += s["cost"]
-        by_fam[s["fam"]] = by_fam.get(s["fam"], 0) + s["cost"]
-        for i in range(4):
-            tok[i] += s["u"][i]
+        c0 = s["cost"] or 0.0  # an unpriced step has no amount: its tokens count, its cost does not
+        cost += c0
+        add_tok(tok, s["tok"])
+        f = by_fam.setdefault(s["fam"], {"c": 0.0, "n": 0, "tok": zero_tok(codex)})
+        f["c"] += c0
+        f["n"] += 1
+        add_tok(f["tok"], s["tok"])
+        if not s["priced"]:
+            n_unp += 1
+            unp_models.add(s["model"] or "(unknown)")
+        n_local += bool(s.get("local"))
+        n_fast += bool(s.get("fast"))
         cats = [c["cat"] for c in s["calls"]] or ["other"]
         for c in cats:
-            by_cat[c]["c"] += s["cost"] / len(cats)
+            by_cat[c]["c"] += c0 / len(cats)
+            add_tok(by_cat[c]["tok"], s["tok"], 1.0 / len(cats))
         for c in s["calls"]:
             by_cat[c["cat"]]["n"] += 1
             d = c["dur"]
@@ -156,15 +171,19 @@ def finish_agent(aid, turns, steps, stamps, brief, meta, ctx):
             last_text = s["says"]
     if report is None and last_text and aid != "main":
         report, rsrc = last_text, "lasttext"
-    fam_main = max(by_fam, key=by_fam.get) if by_fam else fam_of(meta.get("model"))
+    fam_main = max(by_fam, key=lambda f: (by_fam[f]["c"], by_fam[f]["n"])) if by_fam else fam_of(meta.get("model"))
     a = {"id": aid, "desc": meta.get("description") or ("主代理" if aid == "main" else aid), "model": meta.get("model") or "",
          "effort": meta.get("effort") or "", "fam": fam_of(meta.get("model")) if meta.get("model") else fam_main,
          "depth": meta.get("spawnDepth", 0 if aid == "main" else 1), "parentTu": meta.get("toolUseId"),
          "wt": meta.get("worktreePath") or "", "bg": meta.get("requestShape") == "background", "type": meta.get("agentType") or "",
          "start": min(stamps) if stamps else 0, "end": max(stamps) if stamps else 0, "nsteps": len(steps),
          "cost": cost, "byFam": by_fam, "byCat": by_cat, "tok": tok, "briefing": brief or "",
+         "nUnp": n_unp, "unpModels": sorted(unp_models), "nLocal": n_local, "nFast": n_fast,
          "lastText": last_text, "turns": turns,
          "stats": {"steps": len(steps), "hooks": hooks, "longT": long_t, "longN": long_n, "testT": test_t, "waitT": wait_t}}
+    for v in by_cat.values():  # shared steps are split evenly between their calls: whole tokens are enough
+        v["tok"] = {k: round(x) for k, x in v["tok"].items()}
+    a["doneTs"] = done_ts(turns, steps)
     a["reason"] = ""
     if brief:
         mo = re.search(r"^[\s>*\-]*(选档理由：.*)$", brief, re.M)
@@ -174,6 +193,19 @@ def finish_agent(aid, turns, steps, stamps, brief, meta, ctx):
         if t["trig"]["k"] == "brief":
             t["trig"]["text"] = ""  # the full briefing lives in a["briefing"]
     return a
+
+
+def done_ts(turns, steps):
+    """When the agent handed back or ended its last turn (epoch ms); 0 when the recording stops without an end."""
+    for s in reversed(steps):
+        for c in s["calls"]:
+            if c["name"] == "SubagentHandback":
+                return c["ts"]
+    if turns and turns[-1].get("end") and turns[-1].get("endKind") in ("complete", "abort"):
+        return turns[-1]["end"]  # Codex records task_complete / turn_aborted
+    if steps and steps[-1].get("stop") == "end_turn":
+        return steps[-1].get("fin") or steps[-1]["end"]
+    return 0
 
 
 def link_agents(agents):
@@ -201,7 +233,7 @@ def link_agents(agents):
                 for c in s["calls"]:
                     ch = by_id.get(c.get("agent"))
                     if ch:
-                        c["child"] = {"start": ch["start"], "end": ch["end"], "cost": ch["cost"], "steps": ch["nsteps"]}
+                        c["child"] = {"start": ch["start"], "end": ch["end"], "cost": ch["cost"], "tok": ch["tok"], "steps": ch["nsteps"]}
     for a in agents:
         for t in a["turns"]:
             tr = t["trig"]
@@ -212,17 +244,33 @@ def link_agents(agents):
 
 
 def totals(agents):
+    """Session totals. Amounts only sum priced steps; tokens always sum every step."""
     main, subs = agents[0], agents[1:]
+    codex = "rsn" in main["tok"]
     by_fam = {}
-    by_cat = {c: {"c": 0.0, "t": 0, "n": 0} for c in CATS}
+    by_cat = {c: {"c": 0.0, "t": 0, "n": 0, "tok": zero_tok(codex)} for c in CATS}
+    tok, sub_tok = zero_tok(codex), zero_tok(codex)
     compacts, hooks, stops, long_t, long_n, bg_long_t = [], 0, 0, 0, 0, 0
+    n_unp = n_local = n_fast = 0
+    unp_models = set()
     groups = {}
     for a in agents:
         for f, v in a["byFam"].items():
-            by_fam[f] = by_fam.get(f, 0) + v
+            g = by_fam.setdefault(f, {"c": 0.0, "n": 0, "tok": zero_tok(codex)})
+            g["c"] += v["c"]
+            g["n"] += v["n"]
+            add_tok(g["tok"], v["tok"])
         for c, v in a["byCat"].items():
             for k in ("c", "t", "n"):
                 by_cat[c][k] += v[k]
+            add_tok(by_cat[c]["tok"], v["tok"])
+        add_tok(tok, a["tok"])
+        if a["id"] != "main":
+            add_tok(sub_tok, a["tok"])
+        n_unp += a["nUnp"]
+        n_local += a["nLocal"]
+        n_fast += a["nFast"]
+        unp_models.update(a["unpModels"])
         hooks += a["stats"]["hooks"]
         long_t += a["stats"]["longT"]
         long_n += a["stats"]["longN"]
@@ -240,11 +288,13 @@ def totals(agents):
                         bg_long_t += c["bgDur"]
         if a["id"] != "main":
             key = (a["model"] or a["fam"], a["effort"] or "-")
-            g = groups.setdefault(key, {"model": key[0], "effort": key[1], "n": 0, "cost": 0.0})
+            g = groups.setdefault(key, {"model": key[0], "effort": key[1], "n": 0, "cost": 0.0, "tok": zero_tok(codex)})
             g["n"] += 1
             g["cost"] += a["cost"]
+            add_tok(g["tok"], a["tok"])
     return {"cost": main["cost"] + sum(a["cost"] for a in subs), "mainCost": main["cost"], "subCost": sum(a["cost"] for a in subs),
+            "mainTok": main["tok"], "subTok": sub_tok, "tok": tok,
+            "nUnp": n_unp, "unpModels": sorted(unp_models), "nLocal": n_local, "nFast": n_fast,
             "byFam": by_fam, "byCat": by_cat, "compacts": compacts, "hooks": hooks, "stopBlocks": stops,
             "longT": long_t, "longN": long_n, "bgLongT": bg_long_t, "nsub": len(subs),
-            "groups": sorted(groups.values(), key=lambda g: -g["cost"]), "mainSteps": main["nsteps"],
-            "tok": [sum(a["tok"][i] for a in agents) for i in range(4)]}
+            "groups": sorted(groups.values(), key=lambda g: -g["cost"]), "mainSteps": main["nsteps"]}

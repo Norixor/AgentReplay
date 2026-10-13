@@ -1,0 +1,153 @@
+/* Route map (swim lanes over a time axis). Colours come from the page theme tokens (--panel, --line, --bad, --c-*); only canvas tokens live here. */
+:root{--rt-bg:#f3f5f9;--rt-stripe:rgba(20,30,50,.045);--rt-active:rgba(37,99,235,.075);--rt-edge:rgba(37,99,235,.35);--rt-grid:rgba(20,30,50,.06);--rt-hatch:rgba(20,30,50,.16);
+  --rt-strip:#a4abb8;--rt-strip-bg:#e6e9ef;--rt-view:rgba(37,99,235,.12);--rt-glow:rgba(37,99,235,.55);--rt-shadow:0 1px 4px rgba(20,30,50,.12)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--rt-bg:#11151b;--rt-stripe:rgba(255,255,255,.04);--rt-active:rgba(108,155,255,.10);--rt-edge:rgba(108,155,255,.4);--rt-grid:rgba(255,255,255,.055);--rt-hatch:rgba(255,255,255,.14);
+  --rt-strip:#5b6472;--rt-strip-bg:#232a34;--rt-view:rgba(108,155,255,.16);--rt-glow:rgba(108,155,255,.6);--rt-shadow:0 1px 6px rgba(0,0,0,.5)}}
+:root[data-theme="dark"]{--rt-bg:#11151b;--rt-stripe:rgba(255,255,255,.04);--rt-active:rgba(108,155,255,.10);--rt-edge:rgba(108,155,255,.4);--rt-grid:rgba(255,255,255,.055);--rt-hatch:rgba(255,255,255,.14);
+  --rt-strip:#5b6472;--rt-strip-bg:#232a34;--rt-view:rgba(108,155,255,.16);--rt-glow:rgba(108,155,255,.6);--rt-shadow:0 1px 6px rgba(0,0,0,.5)}
+
+.rt{margin:12px 0;min-width:0;max-width:100%}
+.rt-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:8px;font-size:12px}
+.rt-bar .grow{flex:1 1 0}
+.rt-zoom,.rt-src{white-space:nowrap}
+.rt-seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.rt-seg button{border:0;border-radius:0;margin:0;padding:3px 12px;font-size:12px}
+.rt-seg button+button{border-left:1px solid var(--line)}
+.rt-seg button.on{background:var(--accent);color:var(--chip-ink,#fff)}
+.rt-chk{display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
+
+/* legend: its own row under the toolbar, collapsible, never floating over the canvas */
+.rt-leg{margin-bottom:8px;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:4px 10px;background:var(--panel)}
+.rt-leg summary{cursor:pointer;color:var(--dim)}
+.rt-legbody{display:flex;flex-direction:column;gap:5px;padding:5px 0 3px}
+.rt-sw,.rt-mk{display:flex;flex-wrap:wrap;gap:3px 12px;color:var(--dim)}
+.rt-sw span,.rt-mk span{display:inline-flex;align-items:center;gap:4px}
+.rt-sw i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.rt-mk b{color:var(--ink)}
+.rt-bad i,.rt-lgs,.rt-lgi,.rt-lgg{width:12px;height:10px;border-radius:2px;display:inline-block}
+.rt-bad i{border:1.5px solid var(--bad);background:var(--bad-soft)}
+.rt-lgs{height:0;border-top:1.5px dashed var(--rt-strip);background:none;border-radius:0}
+.rt-lgg{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--c-other);box-shadow:2px 2px 0 -1px var(--panel),2px 2px 0 0 var(--line)}
+.rt-lgi{background:repeating-linear-gradient(135deg,var(--rt-hatch) 0 1px,transparent 1px 5px);border:1px solid var(--line)}
+
+/* frame: [lane names | time axis] on top, [lane names | plot] below */
+.rt-main{position:relative;--lw:180px;--ah:30px;height:max(480px,calc(100vh - var(--topH,44px) - 200px));border:1px solid var(--line);border-radius:10px;background:var(--rt-bg);overflow:hidden}
+.rt-corner{position:absolute;left:0;top:0;width:var(--lw);height:var(--ah);box-sizing:border-box;padding:0 10px;display:flex;align-items:center;font-size:11px;color:var(--dim);background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line);z-index:5}
+.rt-axis{position:absolute;left:var(--lw);top:0;display:block;height:var(--ah);background:var(--panel);z-index:5}
+.rt-labs{position:absolute;left:0;top:var(--ah);bottom:0;width:var(--lw);overflow:hidden;background:var(--panel);border-right:1px solid var(--line);z-index:4}
+.rt-vp{position:absolute;left:var(--lw);top:var(--ah);right:0;bottom:0;overflow:hidden;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.rt-vp.panning{cursor:grabbing}
+.rt-vp:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:-2px}
+.rt-bg{position:absolute;left:0;top:0;pointer-events:none}
+.rt-world{position:absolute;left:0;top:0;will-change:transform;z-index:1}
+.rt-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+
+/* lane name column */
+.rt-lab{position:absolute;left:0;right:0;box-sizing:border-box;display:flex;flex-direction:column;gap:3px;padding:5px 6px 0;font-size:12px;border-bottom:1px solid var(--line);overflow:hidden;background:var(--panel)}
+.rt-lab.alt{background:color-mix(in srgb,var(--panel) 94%,var(--ink))}
+.rt-lab.col{justify-content:center;padding-top:0}
+.rt-lr{display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:nowrap}
+.rt-lr>.rt-tg,.rt-lr>.rt-dot{flex:none}
+.rt-ln{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font-weight:600}
+.rt-ln:hover{color:var(--accent);text-decoration:underline}
+.rt-lm{font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden}
+/* Lane fold toggle: a real, visible button (it used to be a faint 11px ▸ nobody noticed). */
+.rt-tg{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;margin:0;border:1px solid var(--line);border-radius:5px;
+  background:var(--panel);color:var(--ink);font:600 13px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;pointer-events:auto}
+.rt-tg.shut{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.rt-tg:hover{border-color:var(--accent);color:var(--accent)}
+.rt-tg:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rt-foldall{font:inherit;font-size:12px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);cursor:pointer}
+.rt-foldall:hover{border-color:var(--accent)}
+.rt-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:rt-pulse 1.8s ease-out infinite}
+@keyframes rt-pulse{70%{box-shadow:0 0 0 5px transparent}}
+
+/* nodes */
+.rt-node{position:absolute;box-sizing:border-box;padding:2px 6px 2px 8px;border-radius:7px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c-other);box-shadow:var(--rt-shadow);cursor:pointer;overflow:hidden;font-size:12px;line-height:1.25;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.rt-node:hover{border-color:var(--accent);z-index:3}
+.rt-node.c-read{border-left-color:var(--c-read)}.rt-node.c-test{border-left-color:var(--c-test)}.rt-node.c-write{border-left-color:var(--c-write)}
+.rt-node.c-git{border-left-color:var(--c-git)}.rt-node.c-wait{border-left-color:var(--c-wait)}.rt-node.c-agent{border-left-color:var(--c-agent)}
+.rt-node.k-dispatch,.rt-node.k-recv{background:color-mix(in srgb,var(--c-agent) 12%,var(--panel));border-left-color:var(--c-agent)}
+.rt-node.k-user{background:var(--accent-soft);border-left-color:var(--accent)}
+.rt-node.k-compact{background:var(--warn-soft);border-left-color:var(--c-wait)}
+.rt-node.k-merge{background:color-mix(in srgb,var(--c-git) 14%,var(--panel));border-left-color:var(--c-git)}
+.rt-node.s-err,.rt-node.s-hook{background:var(--bad-soft);border-color:var(--bad);border-left-color:var(--bad)}
+.rt-node.lod0{padding:0;align-items:center;border-left-width:3px;border-radius:5px}
+.rt-ic{font-size:13px;line-height:1}
+.rt-h{display:flex;align-items:baseline;gap:6px;min-width:0}
+.rt-t{flex:1 1 auto;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-s{flex:none;font-size:11px;font-weight:600}
+.rt-s.s-ok{color:var(--ok)}.rt-s.s-err,.rt-s.s-hook{color:var(--bad)}.rt-s.s-run{color:var(--accent)}
+.rt-s.s-err::before{content:"✗ "}.rt-s.s-hook::before{content:"⛔ "}.rt-s.s-ok::before{content:"✓ "}
+.rt-m{display:flex;gap:8px;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden}
+.rt-m b{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+.rt-cost{margin-left:auto}
+.rt-rtn{color:var(--bad);font-weight:600}
+.rt-du{position:absolute;left:0;bottom:0;height:2px;background:var(--accent);opacity:.5;pointer-events:none}
+/* automatic group of crowded nodes: same height as a box, drawn as a small stack */
+.rt-node.k-group{background:color-mix(in srgb,var(--panel) 93%,var(--ink));box-shadow:2px 2px 0 -1px var(--panel),2px 2px 0 0 var(--line),var(--rt-shadow)}
+.rt-node.c-user{border-left-color:var(--accent)}.rt-node.c-bad{border-left-color:var(--bad)}
+.rt-node.has-bad{border-color:var(--bad)}
+/* instant events (hand-back, merge, compaction, block, narrow dispatch / user message): a 16 px icon on the row's middle line */
+.rt-node.rt-mark{--mc:var(--c-other);padding:0;gap:0;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--mc);border-left-width:1px;background:color-mix(in srgb,var(--mc) 16%,var(--panel));color:var(--mc);box-shadow:none;overflow:visible}
+.rt-node.rt-mark .rt-ic{font-size:10px}
+.rt-node.rt-mark.k-user{--mc:var(--accent)}.rt-node.rt-mark.k-dispatch,.rt-node.rt-mark.k-recv{--mc:var(--c-agent)}
+.rt-node.rt-mark.k-merge{--mc:var(--c-git)}.rt-node.rt-mark.k-compact{--mc:var(--c-wait)}
+.rt-node.rt-mark.s-hook,.rt-node.rt-mark.s-err{--mc:var(--bad);background:var(--bad-soft);border-color:var(--bad)}
+.rt-node.rt-mark:hover{border-color:var(--accent);background:var(--accent-soft);z-index:3}
+/* a folded run of plain calls: a dotted line between two nodes, vertically centred */
+.rt-line{position:absolute;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1}
+.rt-line::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1.5px dashed var(--rt-strip);opacity:.75}
+.rt-line:hover::before{border-top-color:var(--accent);opacity:1}
+.rt-line span{position:relative;padding:0 5px;font-size:10.5px;line-height:14px;color:var(--dim);white-space:nowrap;background:var(--rt-bg);border-radius:3px}
+.rt-line:hover span{color:var(--ink)}
+/* running node: grows with time, glowing end */
+.rt-node.live{border-color:var(--accent);box-shadow:0 0 0 1px var(--rt-glow),6px 0 14px -2px var(--rt-glow);transition:width 1s linear;animation:rt-glow 1.8s ease-in-out infinite}
+@keyframes rt-glow{50%{box-shadow:0 0 0 1px var(--rt-glow),10px 0 20px 0 var(--rt-glow)}}
+.rt-new{animation:rt-in .45s ease-out both}
+@keyframes rt-in{from{opacity:0}to{opacity:1}}
+.rt-node.rt-new.live{animation:rt-in .45s ease-out both,rt-glow 1.8s ease-in-out .45s infinite}
+.rt-fold{position:absolute;box-sizing:border-box;height:12px;line-height:12px;padding:0 6px;margin:0;border:0;border-radius:4px 4px 0 0;background:var(--accent-soft);color:var(--accent);font-size:10px;text-align:left;white-space:nowrap;overflow:hidden;cursor:pointer;z-index:3}
+
+/* lines between lanes */
+.rt-e path{fill:none;stroke:var(--c-agent);stroke-width:1.6;opacity:.85}
+.rt-e.e-join path{opacity:.7}
+.rt-e path.mk{fill:var(--c-agent);stroke:none}
+.rt-e circle{fill:var(--c-agent);opacity:.5}
+.rt-e.cross path{stroke-width:1;stroke-dasharray:3 3;opacity:.45}
+.rt-e.cross path.mk{stroke-dasharray:none}
+.rt-e.e-retry path{stroke:var(--bad);stroke-width:1.5;stroke-dasharray:4 3;opacity:.9}
+.rt-e.lab-off text{display:none}
+.rt-e.lab-off:hover text{display:block}
+.rt-e.e-retry path.hit{stroke:transparent;stroke-width:12;stroke-dasharray:none;opacity:1;pointer-events:stroke}
+.rt-e text{fill:var(--bad);font-size:10.5px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:3px}
+
+.rt-ovl{position:absolute;z-index:5}
+.rt-map{right:14px;bottom:14px;width:168px;height:92px;border:1px solid var(--line);border-radius:6px;background:color-mix(in srgb,var(--panel) 92%,transparent);cursor:pointer;box-shadow:var(--rt-shadow)}
+.rt-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.rt-tip{position:absolute;z-index:8;pointer-events:none;max-width:min(440px,calc(100% - 8px));background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.rt-tip ul{list-style:none;margin:4px 0 0;padding:0}
+.rt-tip li{display:flex;gap:6px;align-items:baseline;padding:1px 0}
+.rt-tip time{color:var(--dim);font-variant-numeric:tabular-nums;flex:none}
+.rt-tn{flex:none;font-weight:600}
+.rt-tx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
+.rt-tip i{flex:none;font-style:normal;color:var(--dim)}
+.rt-tip li>i:first-of-type{margin-left:auto}
+.rt-tip em{flex:none;font-style:normal;color:var(--bad);font-weight:600}
+
+.rt-hidden *,.rt-hidden *::before,.rt-hidden *::after{animation-play-state:paused!important}
+@media (prefers-reduced-motion:reduce){
+  .rt *,.rt *::before,.rt *::after{animation:none!important;transition:none!important}
+}
+@media (max-width:700px){
+  .rt-main{--lw:110px}
+  .rt-map{display:none}
+  .rt-lab{padding-left:4px;font-size:11px}
+  .rt-lm{transform-origin:0 0}
+}
+
+/* The "路线" tab (ended sessions) uses the full content width like the live canvases. */
+#app.v-route{max-width:none}
+
+.rt-sortw select{max-width:9em;font-size:12px}
+.rt-by{margin-left:6px;font-size:10px}

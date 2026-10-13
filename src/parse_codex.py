@@ -74,7 +74,6 @@ def build_thread(aid, data, ctx, paths):
             ts0 = s["t0"] or (usage_ev["ts"] if usage_ev else 0)
             open_turn({"k": "meta", "ts": ts0, "text": "（本轮没有可见的触发消息，Codex 自动继续）"})
         u = usage_ev["last"] if usage_ev else {"in": 0, "cached": 0, "cw": 0, "out": 0, "rsn": 0}
-        uu = [max(0, u["in"] - u["cached"] - u["cw"]), u["out"], u["cw"], u["cached"]]
         first_ts = min([x for x in [s["t0"]] + [m["ts"] for m in s["msgs"]] + [r["ev"]["ts"] for r in s["recs"]] + [r["ts"] for r in s["reason"]] if x] or [usage_ev["ts"] if usage_ev else last_act])
         texts_before = [m["text"] for m in s["msgs"] if m["ncalls"] == 0]
         texts_all = [m["text"] for m in s["msgs"]]
@@ -84,11 +83,17 @@ def build_thread(aid, data, ctx, paths):
         elif not said:
             src = ""
         model = st["model"] or "codex"
+        pr = prices.codex_step(model, u)
+        if not usage_ev:  # work cut short by an abort has no usage row: nothing to price, nothing unpriced
+            pr["cost"], pr["priced"] = 0.0, True
         step = {"n": len(steps), "ts": first_ts, "end": usage_ev["ts"] if usage_ev else first_ts, "fam": model, "model": model,
-                "effort": st["effort"], "cost": 0.0, "ctx": u["in"] if usage_ev else prev_ctx, "u": uu, "rsn": u["rsn"], "think": s["think"],
+                "effort": st["effort"], "cost": pr["cost"], "priced": pr["priced"], "ctx": u["in"] if usage_ev else prev_ctx, "tok": pr["tok"],
+                "think": s["think"],
                 "gap": 0, "_lastev": last_act, "_cwd": st["cwd"], "said": said, "saidSrc": src, "says": "\n\n".join(texts_all) if not s["recs"] else "",
                 "rsum": "\n".join(r["text"] for r in s["reason"]), "cause": pending[:],
                 "after": steps[-1]["n"] if steps and not pending else None, "calls": [], "_recs": s["recs"]}
+        if pr["local"]:
+            step["local"] = True
         pending.clear()
         steps.append(step)
         cur["steps"].append(step)
@@ -111,6 +116,9 @@ def build_thread(aid, data, ctx, paths):
                 add_event({"k": "info", "ts": e["ts"], "text": "回合出错结束：" + cut(e["err"], 400)})
             if cur is not None and e.get("last"):
                 cur["_last"] = e["last"]
+            if cur is not None and not start_pending:  # a task that produced nothing must not end the previous turn
+                cur["end"] = e["ts"]
+                cur["endKind"] = "abort" if e["aborted"] else "error" if e["err"] else "complete"
             closed, start_pending = True, False
         elif t == "ctx":
             st["model"] = e["model"] or st["model"]
@@ -221,23 +229,15 @@ def parse_codex(root_id, tree, name="", out_chars=600, inp_chars=6000, progress=
     for tid, m in metas.items():
         paths[m.get("agent_path") or ("/root" if tid == root_id else "")] = "main" if tid == root_id else tid
     paths.setdefault("/root", "main")
-    ctx = {"out": out_chars, "inp": inp_chars, "family": lambda m: m or "codex"}
+    ctx = {"out": out_chars, "inp": inp_chars, "family": lambda m: m or "codex", "codex": True}
     built = {}
     order = [root_id] + sorted((t for t in scanned if t != root_id), key=lambda t: scanned[t]["meta"].get("timestamp") or "")
     for tid in order:
         aid = "main" if tid == root_id else tid
         built[tid] = build_thread(aid, scanned[tid], ctx, paths)
 
-    # Price decision: quota units only when every step's model has a configured price, otherwise tokens.
     models = {s["model"] for b in built.values() for s in b["steps"]}
-    priced = bool(models) and all(prices.lookup("codex", m)[1] for m in models)
-    for b in built.values():
-        for s in b["steps"]:
-            tk = s["u"][0] + s["u"][1] + s["u"][2]
-            s["tk"] = tk
-            s["cost"] = prices.cost(prices.lookup("codex", s["model"])[1], s["u"]) if priced else float(tk)
-
-    agents, rsn_total = [], 0
+    agents = []
     spawn_args = {}
     for tid in order:
         for s in built[tid]["steps"]:
@@ -264,8 +264,6 @@ def parse_codex(root_id, tree, name="", out_chars=600, inp_chars=6000, progress=
         a["tool"] = "codex"
         a["path"] = path
         a["parent"] = None if aid == "main" else ("main" if parent_tid == root_id or parent_tid not in scanned else parent_tid)
-        a["rsn"] = sum(s["rsn"] for s in b["steps"])
-        a["tk"] = sum(s["tk"] for s in b["steps"])
         a["cwd"] = b["cwd"]
         for t in b["turns"]:
             last = t.pop("_last", None)
@@ -275,19 +273,16 @@ def parse_codex(root_id, tree, name="", out_chars=600, inp_chars=6000, progress=
             for t in b["turns"]:
                 if t["trig"]["k"] == "brief":
                     t["trig"]["text"] = ""
-        rsn_total += a["rsn"]
         agents.append(a)
     # Sub-agents whose parent thread is not part of the scanned tree attach to the root.
     link_agents(agents)
     root = agents[0]
-    meta_out = {"tool": "codex", "unit": "quota" if priced else "token", "priced": priced, "sid": root_id,
+    meta_out = {"tool": "codex", "pricing": prices.meta("codex"), "sid": root_id,
                 "name": name or root_id[:8], "start": root["start"], "end": max(a["end"] for a in agents), "outChars": out_chars,
                 "inpChars": inp_chars, "project": root.get("cwd") or metas[root_id].get("cwd") or "",
-                "prices": {k: list(v) for k, v in prices.load("codex")["models"].items()}, "rows": sum(len(d["events"]) for d in scanned.values()),
+                "rows": sum(len(d["events"]) for d in scanned.values()),
                 "models": sorted(models)}
-    tot = totals(agents)
-    tot["rsn"] = rsn_total
-    return {"meta": meta_out, "agents": agents, "totals": tot}
+    return {"meta": meta_out, "agents": agents, "totals": totals(agents)}
 
 
 def _briefing(text, spawn, aid):

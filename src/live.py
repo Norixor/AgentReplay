@@ -14,6 +14,7 @@ from collections import defaultdict, deque
 
 import index
 from common import ts_ms
+from prices import tok_total, zero_tok
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WINDOW_MS = 61 * 60 * 1000
@@ -21,7 +22,8 @@ BUCKET_MS = 60_000
 _TS = re.compile(rb'"timestamp":"([^"]+)"')
 _CFG = {"mtime": None, "data": {}}
 DEFAULTS = {"ctxLimit": 400000, "ctxLimitCodex": 400000, "idleSec": 300, "endedSec": 600, "longCmdSec": 600, "subStepLimit": 150,
-            "hookRecentSec": 600, "failStreak": 3, "staleSubSec": 3600, "releaseSec": 1800, "pollSec": 5, "slowPollSec": 60}
+            "hookRecentSec": 600, "failStreak": 3, "staleSubSec": 3600, "releaseSec": 1800, "pollSec": 5, "slowPollSec": 60,
+            "returnedKeepSec": 600, "graphMaxNodes": 40, "graphFadeSec": 60}
 
 
 def config():
@@ -94,15 +96,17 @@ class AgentState:
         self.steps, self.ids, self.prefix_steps = 0, set(), 0
         self.ctx, self.window = 0, 0
         self.pending = {}           # call id -> call dict
-        self.recent = deque(maxlen=3)
+        self.recent = deque(maxlen=5)   # newest last; the node tooltip shows 5, cards show 3
+        self.tok = zero_tok()       # token vector (see prices.py) seen in the read window
+        self.step_ts = deque(maxlen=400)
         self.cur = None             # step record being filled
         self.said = ""
         self.fail_streak = 0
         self.hook_ts = deque(maxlen=20)
         self.poll_ts = 0
         self.done, self.done_ts, self.done_key = False, 0, None
-        self.buckets = defaultdict(lambda: [0.0, 0])   # minute -> [quota, tokens]
-        self.msg = {}               # message id -> [ts, quota, tokens] already accounted
+        self.buckets = defaultdict(lambda: [0.0, 0])   # minute -> [amount in USD, tokens]
+        self.msg = {}               # message id -> [ts, amount, token vector] already accounted
         self.cur_mid = None
         self.approx = False
         self.merge_ts = 0
@@ -141,8 +145,11 @@ class Live:
         self.recs = recs
         self.stale_unreturned = 0
         self.known = {}             # path -> peek result for files we decided not to follow
+        self.briefs = {}            # dispatch tool_use id -> first brief lines and the model-choice reason
+        self.last_user = None       # newest user message {ts, text}
         self.first_built = False
         self.models = set()
+        self.unpriced = set()       # models seen without a price: their tokens count, their amount does not
         self.build_ms = 0
         if self.tool == "claude":
             import live_claude
@@ -162,6 +169,8 @@ class Live:
             self._seen = {(e["k"], e["agent"], e["ts"], e["text"][:40]) for e in self.events}
         e = {"ts": ts, "k": k, "agent": aid, "text": text[:400]}
         e.update(extra)
+        if k == "user" and (self.last_user is None or ts >= self.last_user["ts"]):
+            self.last_user = {"ts": ts, "text": text[:120]}
         self.events.append(e)
 
     def follow(self, path, state, feed, now, window=True):
@@ -248,12 +257,6 @@ class Live:
             out.append({"k": "fail", "text": "连续 %d 次调用失败" % a.fail_streak})
         return out
 
-    def unit_info(self):
-        if self.tool == "claude":
-            return "quota"
-        import prices
-        return "quota" if self.models and all(prices.lookup("codex", m)[1] for m in self.models) else "token"
-
     def parent_of(self, a):
         if a.id == "main":
             return None
@@ -261,54 +264,89 @@ class Live:
             return "main" if a.parent_tid == self.id else a.parent_tid
         return self.tu_owner.get(a.tu) or "main"
 
+    def sub_status(self, now, cfg, kids):
+        """id -> status of every followed sub-agent (the sub-agent list matches rows by id)."""
+        out = {}
+        for s in self.sub_states():
+            state, det = self.agent_state(s, now, cfg, kids.get(s.id, 0))
+            if s.done:
+                state, det = "done", {}
+            out[s.id] = {"state": state, "start": s.start, "runMs": max(0, now - s.start) if s.start else None, "lastTs": s.last_ts,
+                         "doneTs": s.done_ts if s.done else 0, "tool": det.get("tool", ""), "desc": det.get("desc", ""), "sum": det.get("sum", ""),
+                         "elapsed": det.get("elapsed"), "why": det.get("why", "")}
+        return out
+
+    def live_kids(self, now, cfg):
+        """parent id -> number of its sub-agents that are not returned and wrote recently."""
+        kids = {}
+        for s in self.sub_states():
+            if not s.done and s.last_ts and now - s.last_ts <= cfg["idleSec"] * 1000:
+                p = self.parent_of(s)
+                kids[p] = kids.get(p, 0) + 1
+        return kids
+
     def card(self, a, now, cfg, n_children):
         state, det = self.agent_state(a, now, cfg, n_children)
-        unit = self.unit_info()
-        qi = 0 if unit == "quota" else 1
+        if a.done:
+            state, det = "done", {}
         win15 = (now - 15 * 60000) // BUCKET_MS
-        c15 = sum(v[qi] for k, v in a.buckets.items() if k > win15)
+        c15 = sum(v[0] for k, v in a.buckets.items() if k > win15)
+        t15 = sum(v[1] for k, v in a.buckets.items() if k > win15)
         limit = cfg["ctxLimitCodex"] if self.tool == "codex" else cfg["ctxLimit"]
         steps = a.steps + a.prefix_steps
+        span = min(300_000, max(60_000, now - (a.start or now)))
+        spm = round(sum(1 for t in a.step_ts if now - t <= span) * 60_000 / span, 1)
         return {"id": a.id, "desc": a.desc or a.id, "model": a.model, "effort": a.effort, "parent": self.parent_of(a), "depth": a.depth,
-                "start": a.start, "runMs": (now - a.start) if a.start else None, "steps": steps, "stepsApprox": a.approx,
-                "ctx": a.ctx, "ctxLimit": limit, "state": state, "detail": det, "lastTs": a.last_ts,
+                "start": a.start, "runMs": max(0, now - a.start) if a.start else None, "steps": steps, "stepsApprox": a.approx,
+                "ctx": a.ctx, "ctxLimit": limit, "state": state, "detail": det, "lastTs": a.last_ts, "done": a.done, "doneTs": a.done_ts if a.done else 0,
+                "tok": dict(a.tok), "tokTotal": tok_total(a.tok), "costWin": sum(v[0] for v in a.buckets.values()), "spm": spm, "brief": self.briefs.get(a.tu) if a.tu else None,
                 "recent": [{k: r[k] for k in ("n", "ts", "tool", "sum", "why", "st", "dur")} for r in a.recent][::-1],
-                "alerts": self.alerts(a, now, cfg, state), "cost15": c15}
+                "alerts": self.alerts(a, now, cfg, state), "cost15": c15, "tok15": t15}
 
     def snapshot(self, now):
         cfg = config()
         with self.lock:
             self.last_use = time.time()
-            unit = self.unit_info()
-            qi = 0 if unit == "quota" else 1
             subs = self.running_subs(now, cfg)
             main = self.agents.get("main")
+            kids = self.live_kids(now, cfg)
             cards = []
             if main is not None:
                 cards.append(self.card(main, now, cfg, len([s for s in subs if s.last_ts and now - s.last_ts <= cfg["idleSec"] * 1000])))
             for s in sorted(subs, key=lambda x: -(x.start or 0)):
-                cards.append(self.card(s, now, cfg, 0))
+                cards.append(self.card(s, now, cfg, kids.get(s.id, 0)))
             tot15 = tot60 = 0.0
-            series = [0.0] * 12
+            tk15 = tk60 = 0
+            series, tseries = [0.0] * 12, [0] * 12
             for a in self.agents.values():
                 a.prune(now)
                 for k, v in a.buckets.items():
                     age = now - (k + 1) * BUCKET_MS
                     if age < 15 * 60000:
-                        tot15 += v[qi]
+                        tot15 += v[0]
+                        tk15 += v[1]
                     if age < 60 * 60000:
-                        tot60 += v[qi]
-                        series[min(11, max(0, int(age // 300000)))] += v[qi]
+                        tot60 += v[0]
+                        tk60 += v[1]
+                        i = min(11, max(0, int(age // 300000)))
+                        series[i] += v[0]
+                        tseries[i] += v[1]
+            keep = cfg["returnedKeepSec"] * 1000
+            returned = [self.card(s, now, cfg, kids.get(s.id, 0)) for s in sorted(self.sub_states(), key=lambda x: x.start or 0)
+                        if s.done and s.done_ts and now - s.done_ts <= keep]
             last = self.last_write()
             evs = sorted(self.events, key=lambda e: -e["ts"])[:30]
             names = {i: (a.desc or i) for i, a in self.agents.items()}
             for e in evs:
                 e["agentName"] = names.get(e["agent"], e["agent"])
-            return {"ok": True, "tool": self.tool, "id": self.id, "now": now, "unit": unit, "unitLabel": "额度" if unit == "quota" else "token",
+            return {"ok": True, "tool": self.tool, "id": self.id, "now": now,
                     "lastWrite": last, "sinceWrite": (now - last) if last else None, "ended": bool(last) and now - last > cfg["endedSec"] * 1000,
-                    "cards": cards, "events": evs, "staleSubs": self.stale_unreturned,
-                    "rate": {"c15": tot15, "c60": tot60, "perHour15": tot15 * 4, "perHour60": tot60, "series": series[::-1]},
-                    "cfg": {"pollSec": cfg["pollSec"], "slowPollSec": cfg["slowPollSec"], "ctxLimit": cfg["ctxLimit"]},
+                    "cards": cards, "returned": returned, "events": evs, "lastUser": self.last_user, "tok15": tk15, "staleSubs": self.stale_unreturned,
+                    "subs": self.sub_status(now, cfg, kids), "unpriced": sorted(self.unpriced),
+                    "rate": {"c15": tot15, "c60": tot60, "perHour15": tot15 * 4, "perHour60": tot60, "t15": tk15, "t60": tk60,
+                             "tPerHour15": tk15 * 4, "tPerHour60": tk60, "series": series[::-1], "tseries": tseries[::-1]},
+                    "cfg": {"pollSec": cfg["pollSec"], "slowPollSec": cfg["slowPollSec"], "ctxLimit": cfg["ctxLimit"],
+                            "graphMaxNodes": cfg["graphMaxNodes"], "graphFadeSec": cfg["graphFadeSec"], "returnedKeepSec": cfg["returnedKeepSec"]},
                     "build": {"ms": self.build_ms, "followed": len(self.tails)}}
 
     def row_info(self, now):

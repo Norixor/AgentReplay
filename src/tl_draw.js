@@ -64,7 +64,7 @@ function paintAxis(S) {
       ctx.fillText('空闲 ' + fmtIdle(p.r1 - p.r0), (Math.max(0, x0) + Math.min(S.plotW, x1)) / 2, 13);
     }
   });
-  if (S.now) {
+  if (S.now && !(S.hide && S.hide.now)) {
     const x = tx(S, S.now);
     if (x >= 0 && x <= S.plotW) {
       ctx.fillStyle = cssVar('--bad');
@@ -114,8 +114,14 @@ function paintPlot(S) {
       lodSegs(ctx, S, row.long, y, rLeft, rRight, k, false);
       bgStrips(ctx, S, row.bg, y, rLeft, rRight, 60000, false);
     } else {
-      ctx.fillStyle = cssVar('--think');
-      ctx.fillRect(x0, y + BAR_Y, x1 - x0, BAR_H);
+      if (S.hide && S.hide.think) {
+        // Thinking hidden: keep a hairline so the agent's lifetime stays visible behind the remaining segments.
+        ctx.fillStyle = cssVar('--line');
+        ctx.fillRect(x0, y + BAR_Y + Math.floor(BAR_H / 2), x1 - x0, 1);
+      } else {
+        ctx.fillStyle = cssVar('--think');
+        ctx.fillRect(x0, y + BAR_Y, x1 - x0, BAR_H);
+      }
       ctx.fillStyle = resolveColor(famColor(a.fam));
       ctx.fillRect(Math.max(-2, xa), y + BAR_Y, 2.5, BAR_H);
       lodSegs(ctx, S, row.segs, y, rLeft, rRight, k, true);
@@ -123,8 +129,8 @@ function paintPlot(S) {
     }
     paintMarks(ctx, S, r, y);
   }
-  paintLinks(ctx, S, first, last);
-  if (S.now) {
+  if (!(S.hide && S.hide.link)) paintLinks(ctx, S, first, last);
+  if (S.now && !(S.hide && S.hide.now)) {
     const x = Math.round(tx(S, S.now)) + .5;
     if (x >= 0 && x <= W) {
       ctx.strokeStyle = cssVar('--bad');
@@ -142,14 +148,15 @@ function lodSegs(ctx, S, segs, y, rLeft, rRight, k, byCat) {
   let lo = 0, hi = segs.length;
   const lim = rLeft - (segs.maxDur || 3600e3 * 6);
   while (lo < hi) { const m = (lo + hi) >> 1; if (segs[m].a < lim) lo = m + 1; else hi = m; }
-  const W = S.plotW, cols = S.cols, ncat = 8;
+  const W = S.plotW, cols = S.cols, ncat = 9;
   let used = false;
   for (let i = lo; i < segs.length; i++) {
     const sg = segs[i];
     if (sg.a > rRight) break;
     if (sg.b < rLeft) continue;
+    const col = segCol(sg, byCat);
+    if (S.hideCol && S.hideCol[col]) continue;
     const xa = tx(S, sg.a), xb = tx(S, sg.b), w = xb - xa;
-    const col = byCat ? sg.cat : (sg.c.cat === 'test' ? 1 : sg.c.cat === 'wait' ? 4 : 7);
     if (w >= 1.6) {
       ctx.fillStyle = S.catColor[col];
       ctx.fillRect(xa, y + BAR_Y - (byCat ? 0 : 1), w, BAR_H + (byCat ? 0 : 2));
@@ -176,7 +183,13 @@ function lodSegs(ctx, S, segs, y, rLeft, rRight, k, byCat) {
   ctx.globalAlpha = 1;
 }
 
+/* Colour slot of a segment: the activity category in "by activity" mode, the long-command type in "by model" mode. */
+function segCol(sg, byCat) {
+  return byCat ? sg.cat : (sg.c.cat === 'test' ? 1 : sg.c.cat === 'wait' ? 4 : 7);
+}
+
 function bgStrips(ctx, S, list, y, rLeft, rRight, minMs, byCat) {
+  if (S.hide && S.hide.bg) return;
   ctx.globalAlpha = .6;
   list.forEach(b => {
     if (b.b < rLeft || b.a > rRight || b.b - b.a < minMs) return;
@@ -261,10 +274,11 @@ function hitTest(S, px, py) {
   for (let j = lowerBoundSeg(segs, t - (segs.maxDur || 0) - slack); j < segs.length; j++) {
     const s = segs[j];
     if (s.a > t + slack) break;
+    if (S.hideCol && S.hideCol[segCol(s, S.mode !== 'model')]) continue;
     if (t >= s.a - slack && t <= s.b + slack) hit = s;
   }
   if (hit) return {kind: 'seg', row: r, seg: hit, t};
-  for (const b of r.row.bg) if (t >= b.a && t <= b.b && (S.mode === 'act' || b.b - b.a >= 60000) && py + S.off - i * S.RH > 16) return {kind: 'bg', row: r, seg: b, t};
+  if (!(S.hide && S.hide.bg)) for (const b of r.row.bg) if (t >= b.a && t <= b.b && (S.mode === 'act' || b.b - b.a >= 60000) && py + S.off - i * S.RH > 16) return {kind: 'bg', row: r, seg: b, t};
   const a = r.a;
   if (t >= a._s - pxMs * 2 && t <= Math.max(a._e, a._s + 500) + pxMs * 2) return {kind: 'bar', row: r, t};
   return null;

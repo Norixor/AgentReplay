@@ -66,7 +66,7 @@ main{max-width:1500px;margin:0 auto;padding:0 16px 60px}
 .fbar label{cursor:pointer;white-space:nowrap}.q{flex:1;min-width:180px;max-width:360px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
 /* turns & steps */
-.colhead,.row{display:grid;grid-template-columns:96px 104px minmax(240px,2.4fr) minmax(160px,1.5fr) 82px 56px 56px 88px;gap:8px;align-items:start}
+.colhead,.row{display:grid;grid-template-columns:96px 104px minmax(240px,2.4fr) minmax(160px,1.5fr) 82px 80px 56px 88px;gap:8px;align-items:start}
 .colhead{padding:4px 10px;color:var(--dim);font-size:12px}
 .turn{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:12px 0;overflow:hidden}
 .turn-h{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:8px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line);align-items:start}
@@ -82,7 +82,7 @@ select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border
 .row.st-hook{background:var(--bad-soft)}.row.st-err .c-st .bad{font-weight:600}.row.is-long .c-dur .long{font-weight:700;color:var(--bad)}
 .c-time b{font-variant-numeric:tabular-nums;font-weight:600}.c-time small,.c-dur small,.c-st small{display:block;color:var(--dim);font-size:11px}
 .c-cmd{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);word-break:break-all;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.c-cost,.c-ctx,.c-dur{text-align:right;font-variant-numeric:tabular-nums}.c-st{text-align:right}
+.c-cost,.c-ctx,.c-dur{text-align:right;font-variant-numeric:tabular-nums}.c-st{text-align:right}.c-cost .tkv{display:block}
 .tool{display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;color:#fff;line-height:20px;background:var(--c-other);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tool.cat-read{background:var(--c-read)}.tool.cat-test{background:var(--c-test)}.tool.cat-write{background:var(--c-write)}.tool.cat-git{background:var(--c-git)}
 .tool.cat-wait{background:var(--c-wait)}.tool.cat-agent{background:var(--c-agent)}
@@ -125,7 +125,7 @@ details.lt summary{cursor:pointer;color:var(--ink)}details.lt summary em{color:v
   .row{grid-template-columns:1fr auto auto;grid-template-areas:"time tool st" "why why why" "cmd cmd cmd" "dur cost ctx"}
   .c-time{grid-area:time}.c-tool{grid-area:tool}.c-st{grid-area:st}.c-why{grid-area:why}.c-cmd{grid-area:cmd}
   .c-dur,.c-cost,.c-ctx{text-align:left}.c-dur{grid-area:dur}.c-cost{grid-area:cost}.c-ctx{grid-area:ctx}
-  .c-cost::before{content:"额度 ";color:var(--dim)}.c-ctx::before{content:"上下文 ";color:var(--dim)}
+  .c-cost::before{content:"预估金额 ";color:var(--dim)}.c-cost .tkv{display:inline;margin-left:6px}.c-ctx::before{content:"上下文 ";color:var(--dim)}
   .turn-h{grid-template-columns:1fr}.th-r{text-align:left}
   .tl{--lw:130px}.fbar{position:static}
   .barrow{grid-template-columns:100px 1fr}

@@ -1,5 +1,5 @@
 'use strict';
-/* Hash router, header controls and start-up. Routes: #live #overview #timeline #main #agents #agent/<id>, optional ?t=<ms>&k=turn. */
+/* Hash router, header controls and start-up. Routes: #live #overview #timeline #timeline/agent/<id> #analysis #analysis/agent/<id> #route #main #agents #agent/<id>, optional ?t=<ms>&k=turn. */
 
 const VIEW_CLEANUP = [];
 
@@ -40,7 +40,12 @@ function route() {
   root.className = 'v-' + view;
   try {
     if (view === 'live' && D.meta.active) renderLive(root);
-    else if (view === 'timeline') renderTimeline(root);
+    else if (view === 'timeline') {
+      if (parts[1] === 'agent' && parts[2]) renderTimelineFocus(root, decodeURIComponent(parts[2]));
+      else renderTimeline(root);
+    }
+    else if (view === 'analysis') renderAnalysis(root, parts[1] === 'agent' && parts[2] ? decodeURIComponent(parts[2]) : null);
+    else if (view === 'route') renderRoute(root, {live: false});   // static route map from the page data, no polling
     else if (view === 'main') renderAgent(root, 'main', jump);
     else if (view === 'agents') renderAgents(root);
     else if (view === 'agent') renderAgent(root, parts[1], jump);
@@ -58,6 +63,8 @@ function route() {
 (function boot() {
   const nav = document.getElementById('nav');
   if (D.meta.active) nav.insertAdjacentHTML('afterbegin', '<a href="#live" data-v="live">实时<i class="livedot"></i></a>');
+  const tl = nav.querySelector('[data-v="timeline"]');
+  if (tl) tl.insertAdjacentHTML('afterend', '<a href="#analysis" data-v="analysis">耗时分析</a><a href="#route" data-v="route">路线</a>');
   nav.addEventListener('keydown', e => {  // arrow keys move between tabs
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') return;
     const tabs = Array.from(nav.querySelectorAll('a'));

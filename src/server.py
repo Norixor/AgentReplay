@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import threading
 import time
 import webbrowser
@@ -17,7 +18,9 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import config
 import index
+import costcache
 import live
+from live_steps import StepFeed
 from render import build_html
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -41,11 +44,64 @@ def code_signature():
     return h.hexdigest()[:8]
 
 
+# ---------------------------------------------------------------- code self-check
+# A long-running server keeps the modules it imported at start-up (for example render.JS_FILES) while pages read the
+# source files from disk on every render. When src/ changes underneath it the two disagree, so the server compares the
+# code signature on each request and re-executes itself in place (same interpreter, arguments and port).
+
+BOOT_SIG = code_signature()
+SIG_TTL = 1.0           # seconds a comparison result is reused when requests arrive in bursts
+RESTART_WAIT = 30       # seconds to let running parse jobs finish before restarting
+_sig_state = {"at": 0.0, "changed": False}
+_sig_lock = threading.Lock()
+_restart = {"requested": False, "exec": False}
+
+
+def code_changed():
+    """True once src/ differs from what this process started with. The comparison is cached for SIG_TTL seconds."""
+    now = time.monotonic()
+    with _sig_lock:
+        if now - _sig_state["at"] >= SIG_TTL:
+            _sig_state["changed"] = code_signature() != BOOT_SIG
+            _sig_state["at"] = now
+        return _sig_state["changed"]
+
+
+def request_restart(app, httpd):
+    """Start the one background restart: wait for running parse jobs, then stop the serve loop so run() can re-exec."""
+    with _sig_lock:
+        if _restart["requested"] or httpd is None:
+            return
+        _restart["requested"] = True
+
+    def worker():
+        time.sleep(0.5)  # let the "restarting" notice reach the browser
+        end = time.time() + RESTART_WAIT
+        while time.time() < end and any(j.get("state") == "running" for j in list(app.jobs.values())):
+            time.sleep(0.25)
+        _restart["exec"] = True
+        httpd.shutdown()  # returns once serve_forever() has exited in the main thread
+
+    threading.Thread(target=worker, daemon=True, name="code-restart").start()
+
+
+RESTART_PAGE = (
+    '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    '<noscript><meta http-equiv="refresh" content="2"></noscript><title>正在重启</title>'
+    '<style>body{font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC",system-ui,sans-serif;margin:18vh auto;max-width:420px;padding:0 20px;'
+    'color:#1c2128;background:#f6f7f9}@media(prefers-color-scheme:dark){body{color:#dde3ea;background:#0f1318}}</style></head>'
+    '<body data-restarting="1"><b>服务代码已更新，正在重启…</b><p>页面会自动刷新；若长时间没有恢复，请检查启动 agent-replay 的终端。</p>'
+    '<script>setTimeout(function tick(){fetch(location.href,{cache:"no-store"}).then(function(r){return r.text()}).then(function(t){'
+    'if(t.indexOf("data-restarting")<0)location.reload();else setTimeout(tick,1500)}).catch(function(){setTimeout(tick,1500)})},2000)</script>'
+    '</body></html>')
+
+
 class App:
     def __init__(self):
         self.lock = threading.Lock()
         self.recs, self.stats, self.rows = {}, {}, []
         self.jobs = {}  # key -> job dict
+        self.feed = StepFeed(self.tree_files, lambda row: index.codex_tree(self.recs, row["id"]) if row["tool"] == "codex" else None)
         self.refresh()
 
     def refresh(self, force=False):
@@ -129,6 +185,7 @@ class App:
             tree = index.codex_tree(self.recs, row["id"]) if row["tool"] == "codex" else None
             html, info = build_html(row["path"], row["name"], back=True, progress=progress, tool=row["tool"], root_id=row["id"], tree=tree, active=active)
             job["info"] = {"bytes": info["bytes"], "steps": info["steps"], "agents": info["agents"], "shrunk": info["shrunk"]}
+            costcache.store(row["key"], row["size"], info["totals"])  # feeds the list's amount column; size = files at job start
             if active:
                 job["html"] = html
             else:
@@ -186,6 +243,7 @@ def _status_json(job):
 class Handler(BaseHTTPRequestHandler):
     server_version = "agent-replay"
     app = None
+    httpd = None
     allowed_hosts = set()
 
     def log_message(self, fmt, *args):  # quiet: the console shows only the start-up lines
@@ -203,8 +261,8 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _json(self, obj, code=200):
-        self._send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8")
+    def _json(self, obj, code=200, extra=None):
+        self._send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8", extra)
 
     def do_GET(self):
         host = (self.headers.get("Host") or "").lower()
@@ -213,6 +271,8 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         path, q = unquote(u.path), parse_qs(u.query)
         try:
+            if self.code_gate(path):
+                return
             if path == "/":
                 return self._send(200, self.list_page())
             if path == "/api/sessions":
@@ -226,12 +286,27 @@ class Handler(BaseHTTPRequestHandler):
             m = re.match(r"^/api/live/(claude|codex)/([^/]+)$", path)
             if m and _KEY.match(m.group(2)):
                 return self.live_route("%s:%s" % (m.group(1), m.group(2)))
+            m = re.match(r"^/api/steps/(claude|codex)/([^/]+)$", path)
+            if m and _KEY.match(m.group(2)):
+                return self.steps_route("%s:%s" % (m.group(1), m.group(2)), q)
             m = re.match(r"^/(s|r|api/open|api/job)/(claude|codex)/([^/]+)$", path)
             if m and _KEY.match(m.group(3)):
                 return self.session_route(m.group(1), "%s:%s" % (m.group(2), m.group(3)), m.group(2), m.group(3))
             return self._send(404, "not found", "text/plain; charset=utf-8")
         except BrokenPipeError:
             pass
+
+    def code_gate(self, path):
+        """Answer with a restart notice (and start the restart) when src/ changed since start-up; True when answered."""
+        is_api, is_page = path.startswith("/api/"), path == "/" or path.startswith(("/s/", "/r/"))
+        if not (is_api or is_page) or not code_changed():
+            return False
+        request_restart(self.app, self.httpd)
+        if is_api:
+            self._json({"ok": False, "restarting": True, "error": "服务更新中"}, 503, {"Retry-After": "3"})
+        else:
+            self._send(503, RESTART_PAGE, extra={"Retry-After": "3"})
+        return True
 
     def live_route(self, key):
         app = self.app
@@ -243,6 +318,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error": "没有这个会话：%s" % key}, 404)
         try:
             return self._json(live.snapshot(row, app.recs))
+        except Exception as e:  # report instead of dropping the connection
+            return self._json({"ok": False, "error": "%s: %s" % (type(e).__name__, e)}, 500)
+
+    def steps_route(self, key, q):
+        """New steps of one agent since the page was generated (see live_steps.py); only meaningful for active sessions."""
+        app = self.app
+        row = app.row(key)
+        if row is None:
+            app.refresh()
+            row = app.row(key)
+            if row is None:
+                return self._json({"ok": False, "error": "没有这个会话：%s" % key}, 404)
+
+        def num(name, default=0):
+            try:
+                return max(0, int(q.get(name, [default])[0]))
+            except ValueError:
+                return default
+        pend = [int(x) for x in (q.get("pend", [""])[0]).split(",")[:400] if x.isdigit()]
+        try:
+            return self._json(app.feed.answer(row, (q.get("agent", ["main"])[0] or "main")[:80], num("after"), num("turns"), pend, num("known")))
         except Exception as e:  # report instead of dropping the connection
             return self._json({"ok": False, "error": "%s: %s" % (type(e).__name__, e)}, 500)
 
@@ -271,6 +367,10 @@ class Handler(BaseHTTPRequestHandler):
     def list_page(self):
         css = "\n".join(_read(n) for n in ("replay.css", "polish.css", "live.css", "list.css"))
         return _read("list.html").replace("{{CSS}}", css).replace("{{JS}}", _read("list.js"))
+
+
+class Server(ThreadingHTTPServer):
+    allow_reuse_address = True  # a restarted process must be able to bind the port right away
 
 
 def _esc(s):
@@ -304,7 +404,7 @@ def run(port=8790, open_browser=True, reuse=True):
     # The port is taken by something else: try the next few before giving up.
     for cand in range(first, first + 10):
         try:
-            httpd = ThreadingHTTPServer(("127.0.0.1", cand), Handler)
+            httpd = Server(("127.0.0.1", cand), Handler)
             port = cand
             break
         except OSError as e:
@@ -314,6 +414,7 @@ def run(port=8790, open_browser=True, reuse=True):
         return 1
     if port != first:
         print("端口 %d 已被其他程序占用，改用 %d" % (first, port), flush=True)
+    Handler.httpd = httpd
     Handler.allowed_hosts = {"127.0.0.1:%d" % port, "localhost:%d" % port}
     url = "http://127.0.0.1:%d/" % port
     print("会话回放已启动：%s（只监听本机，Ctrl+C 退出）" % url, flush=True)
@@ -324,5 +425,8 @@ def run(port=8790, open_browser=True, reuse=True):
     except KeyboardInterrupt:
         print("\n已退出")
     finally:
-        httpd.server_close()
+        httpd.server_close()  # closes the listening socket before a possible re-exec
+    if _restart["exec"]:
+        print("源码已更新，正在重启…", flush=True)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
     return 0

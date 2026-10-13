@@ -33,7 +33,11 @@ async function poll() {
   try {
     const r = await fetch('/api/job/' + KEY, {cache: 'no-store'});
     const j = await r.json();
-    if (j.state === 'running') {
+    if (j.restarting) {
+      $('msg').textContent = '服务更新中，几秒后继续…';
+    } else if (j.state === 'none') {  // the server restarted and forgot the job: start it again
+      await fetch('/api/open/' + KEY, {cache: 'no-store'}).catch(() => {});
+    } else if (j.state === 'running') {
       const pct = j.total ? Math.min(99, Math.round(j.done / j.total * 100)) : 0;
       $('bar').style.width = Math.max(2, pct) + '%';
       $('msg').textContent = j.label + ' · ' + pct + '%';
@@ -50,7 +54,7 @@ async function poll() {
       $('msg').textContent = '';
       return;
     }
-  } catch (e) { $('sub').textContent = '连接服务失败，请确认 agent-replay serve 仍在运行。'; }
+  } catch (e) { $('sub').textContent = '连接服务失败（服务更新时会短暂重启），请确认 agent-replay serve 仍在运行。'; }
   setTimeout(poll, 400);
 }
 fetch('/api/open/' + KEY, {cache: 'no-store'}).then(() => poll()).catch(() => poll());

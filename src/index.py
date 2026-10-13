@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import config
+import costcache
 from common import ts_ms
 
 INDEX_VERSION = 3
@@ -306,6 +307,9 @@ def list_sessions(recs, now_ms=None):
         if not r["cwd"]:
             r = dict(r, cwd=os.path.basename(os.path.dirname(r["path"])))
         rows.append(_row(r, name, subs, sub_size, mt, now_ms))
+    for row in rows:  # amounts are only known for sessions parsed before and unchanged since (see costcache)
+        c = costcache.lookup(row["key"], row["size"])
+        row["cost"], row["tok"], row["unp"] = (c["cost"], c["tok"], c["unp"]) if c else (None, None, 0)
     rows.sort(key=lambda x: -(x["end"] or 0))
     return rows
 

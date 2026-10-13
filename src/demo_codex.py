@@ -113,8 +113,9 @@ class Rollout:
         rng_in = self.ctx + rng.randint(1500, 7000)
         out = rng.randint(120, 700)
         cached = int(rng_in * rng.uniform(0.82, 0.93))
+        cw = int(rng_in * rng.uniform(0.01, 0.04))  # input_tokens includes both cached input and cache writes
         self.total += rng_in + out
-        usage = {"input_tokens": rng_in, "cached_input_tokens": cached, "output_tokens": out, "reasoning_output_tokens": int(out * 0.4), "total_tokens": rng_in + out}
+        usage = {"input_tokens": rng_in, "cached_input_tokens": cached, "cache_write_input_tokens": cw, "output_tokens": out, "reasoning_output_tokens": int(out * 0.4), "total_tokens": rng_in + out}
         self.ctx = rng_in
         self.ev(end + 5, "token_count", info={"last_token_usage": usage, "total_token_usage": dict(usage, total_tokens=self.total), "model_context_window": 272000})
         self.t = end + 300
@@ -132,7 +133,7 @@ class Rollout:
 class CodexSession:
     def __init__(self, codex_dir, seed, t0):
         self.dir, self.rng, self.threads, self.pace = codex_dir, random.Random(seed), [], 5.0
-        self.root = Rollout(self, ROOT_ID, "/root", None, "", "", "gpt-5.5", "high", t0)
+        self.root = Rollout(self, ROOT_ID, "/root", None, "", "", "gpt-6-sol", "high", t0)
         self.threads.append(self.root)
 
     def hex(self, n):
@@ -202,17 +203,17 @@ def build(codex_dir, now):
     r.start_turn("The inventory sync test keeps failing now and then in CI. Please find out why and fix it. Use helpers for the log digging and for a second look at the fix.")
     r.step("Plan: read the test, gather failure evidence in parallel, then reproduce.", "I will read the test first, then ask a helper to mine the CI logs.", [
         C("sed -n 1,80p src/inventory/inventory-sync.test.ts", "describe('inventory sync', () => {\n  it('reconciles stock after concurrent updates', async () => {\n    await Promise.all(deltas.map((d) => syncWorker.apply('SKU-1', d)));\n    expect(await stock('SKU-1')).toBe(8);\n  });\n});", 0.4)], 5.0)
-    r.step("", "", [Spawn("log_scan", "Mira", "explorer", "gpt-5.5-mini", "low", log_scan)], 2.0)
+    r.step("", "", [Spawn("log_scan", "Mira", "explorer", "gpt-6-luna", "low", log_scan)], 2.0)
     scan = ses.threads[-1]
     r.step("While the helper reads logs I will try the test locally.", "", [C("npx vitest run src/inventory/inventory-sync.test.ts", " ✓ inventory-sync.test.ts (1)\n Tests  1 passed (1)\n Duration  2.4s", 3.6)], 2.0)
     r.step("", "", [{"kind": "wait", "child": scan}], 1.0)
-    r.step("Three failures, same assertion. Handing the reproduction to a worker with more effort.", "", [Spawn("race_repro", "Orin", "worker", "gpt-5.5", "medium", race)], 4.0)
+    r.step("Three failures, same assertion. Handing the reproduction to a worker with more effort.", "", [Spawn("race_repro", "Orin", "worker", "gpt-6-sol", "medium", race)], 4.0)
     rep = ses.threads[-1]
     r.step("", "", [{"kind": "wait", "child": rep}], 1.0)
     r.step("The race is in applyDelta. Applying the fix.", "Switching the read-modify-write to an atomic increment.", [
         {"kind": "patch", "files": ["src/inventory/sync-worker.ts"], "patch": "*** Begin Patch\n*** Update File: src/inventory/sync-worker.ts\n@@\n async function applyDelta(sku: string, delta: number) {\n-  const row = await db.stock.get(sku);\n-  await db.stock.put(sku, row.qty + delta);\n+  await db.stock.increment(sku, delta);\n }\n*** End Patch"}], 6.0)
     r.step("", "", [C("npx vitest run src/inventory --repeat 20 --pool=threads", " ✓ inventory-sync.test.ts (20)\n Tests  20 passed (20)", 52.0, why="Verify under the load that reproduced the failure")], 2.0)
-    r.step("", "", [Spawn("test_review", "Lena", "reviewer", "gpt-5.5-mini", "medium", test_review)], 2.0)
+    r.step("", "", [Spawn("test_review", "Lena", "reviewer", "gpt-6-luna", "medium", test_review)], 2.0)
     rev = ses.threads[-1]
     r.step("", "", [{"kind": "wait", "child": rev}], 1.0)
     r.end_turn("Fixed. The flaky test was a real race: applyDelta read the stock row and wrote qty + delta back in two steps, so concurrent deltas for one SKU could overwrite each other. It now uses db.stock.increment (atomic). 20 parallel repeats pass; CI had failed 3 of the last 40 runs. A reviewer suggests a 50-way concurrent regression test.")

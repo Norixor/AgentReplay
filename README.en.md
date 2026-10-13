@@ -1,0 +1,298 @@
+<h1 align="center">AgentReplay</h1>
+<p align="center">
+  <strong>See what every agent did, why it did it, and what it cost.</strong><br />
+  A local, read-only viewer for Claude Code and Codex sessions. It turns long multi-agent runs into an overview, a timeline, a step-by-step replay with the reason behind each call, per-sub-agent details, and a live monitor for sessions that are still running. No dependencies, nothing leaves your machine.
+</p>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-orange" alt="Apache-2.0 license" /></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python 3.9+" /></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(untested)-8250df" alt="macOS, Linux and Windows (untested)" /></a>
+  <a href="https://github.com/Norixor/AgentReplay/stargazers"><img src="https://img.shields.io/github/stars/Norixor/AgentReplay?color=yellow" alt="GitHub stars" /></a>
+</p>
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#preview">Preview</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="https://github.com/Norixor/AgentReplay/issues">Feedback</a>
+</p>
+<p align="center"><a href="README.md">简体中文</a> · English</p>
+
+## Contents
+
+- [About](#about)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Key features](#key-features)
+- [Preview](#preview)
+- [Supported sources](#supported-sources)
+- [Privacy and security](#privacy-and-security)
+- [Configuration](#configuration)
+- [CLI reference](#cli-reference)
+- [How "reasons" are reconstructed](#how-reasons-are-reconstructed)
+- [Project layout](#project-layout)
+- [Development](#development)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+## About
+
+A coding agent that runs for hours, with sub-agents of different models and effort levels, leaves a transcript that is hard to read: thousands of rows, nested agents, tool output, retries, hook blocks, context compaction. When something is slow or expensive, the questions are always the same: what did each agent do, why did it make that call, how long did it wait, and what did it cost (estimated)?
+
+AgentReplay answers them from the transcripts that Claude Code and Codex already write to disk. It only reads those files, starts a small web server bound to `127.0.0.1`, and shows every session in a browser. The interface is currently Simplified Chinese only; the session content itself is shown as recorded, in any language.
+
+## Requirements
+
+- **Python 3.9 or newer.** Only the standard library is used; there is nothing to `pip install`. (Verified on 3.9 and 3.14.)
+- A modern browser.
+
+Check whether Python is installed:
+
+```sh
+python3 --version        # macOS / Linux
+py -3 --version          # Windows
+```
+
+If it is missing, install it:
+
+| Platform | Command |
+| --- | --- |
+| macOS | `xcode-select --install` (installs git and Python 3 together), or `brew install python` |
+| Windows | `winget install Python.Python.3.12`, or download the installer from [python.org](https://www.python.org/downloads/) and tick **Add to PATH** during setup |
+| Debian / Ubuntu | `sudo apt install python3` |
+| Fedora | `sudo dnf install python3` |
+
+A standalone executable that needs no Python is planned for a later release.
+
+Platforms: macOS and Linux are the supported targets. **Windows support is untested**: the launcher and the code paths are written for it, but nobody has run it there yet.
+
+## Quick start
+
+```sh
+git clone https://github.com/Norixor/AgentReplay.git
+cd AgentReplay
+./agent-replay serve
+```
+
+The browser opens the session list at `http://127.0.0.1:8790/`. Click a session to open its replay.
+
+- **Try it with sample data**: `./agent-replay demo` generates three invented sessions (a finished Claude Code run with six sub-agents, a finished Codex run with three sub-threads, and a Claude Code run that keeps progressing while the demo is open) and never touches your real sessions.
+- **macOS**: double-click `agent-replay.command`.
+- **Windows (untested)**: `agent-replay.cmd serve`, `agent-replay.cmd demo`, or double-click `agent-replay.cmd`.
+- Add `--no-open` to skip opening the browser, `--port N` to pick another port.
+
+## Key features
+
+- **Session list**: every Claude Code and Codex session on the machine in one table, with project, model, size, estimated amount (for sessions already opened), sub-agent count and an "in progress" marker; filter by source, project, status or keyword, and sort by any column.
+- **Estimated amount and tokens**: every place that shows cost uses an **estimated amount in USD** at official API list prices, with the token count beside it; hover for the breakdown (input, cache write, cache read, output). The price table is `src/prices.json`, which records its sources, read date and pricing rules (see [Configuration](#configuration)). Models without a price are left out of the amounts; local models count as 0. Subscription plans are not billed per token, so the amount is for comparison only.
+- **Overview**: totals for the whole run split by agent, model and effort, and by activity (read, test, write, git, wait, agent), plus hook blocks, compactions, long commands and merges. A "time by category" block shows where the time went, in two views: the main agent (wall clock) and all agents added up.
+- **Timeline**: all agents on one time axis, so parallel work, waiting and idle gaps are visible at a glance.
+  - Colored by activity by default (or by model); an overview curve on top lets you drag-select a range to zoom, and idle time can be collapsed.
+  - Click a legend entry to filter, double-click to show only that category.
+  - Six sort orders: start time (default), dispatch order (keeps the parent/child tree), duration, estimated amount, state, model.
+  - Click an agent name for the **single-agent view**: a timeline with one lane per category, plus that agent's time analysis.
+- **Time analysis** (the "耗时分析" tab): a one-sentence conclusion; the critical path; 8 waste detectors, each with time, amount and evidence; the slowest steps; a summary of repeated commands; a per-agent time table. It can also show a single agent (`#analysis/agent/<agent>`).
+  - The 8 detectors: repeated runs, re-runs after truncation, polling, long commands, idle waiting on sub-agents, failed retries, suspected CPU contention, oversized context.
+- **Route map** (the "路线" tab, and the default view of the live page): one lane per agent, laid out by time.
+  - A time scale on top; stretches where no agent is active are collapsed into a narrow idle band.
+  - Three levels of detail: overview (only key nodes, the rest folded into a dashed segment you can click open), stage (adjacent calls of one kind merged) and step (one node per call).
+  - Hand-backs, merges, compactions and hook blocks show as icons; crowded nodes are grouped automatically; dispatches and hand-backs are drawn as vertical lines.
+  - Lanes can be collapsed (returned ones start collapsed when there are many lanes) and expanded all at once; the same six sort orders as the timeline; a mini-map; a running session follows the latest activity.
+- **Step-by-step replay and call reasons**: the main agent turn by turn, each step with its trigger, what the agent said about it, the call, its (shortened) result, duration, token usage and estimated amount. For a running session new steps are appended every 5 seconds; switch between "table" and "terminal", where the terminal view shows commands and output in time order like a terminal.
+- **Sub-agents**: briefing, dispatch parameters (model, effort, background or not), a nested view, every step, and the report handed back; a running session appends new steps every 5 seconds and has the terminal view too. The list has a status column (running ones stay on top with a pulsing dot, the call being executed and how long it has been running; finished sessions show when each one handed back) and can be filtered to all, running or handed back.
+- **Click for details**: clicks inside a session page (a step, several steps, an agent, a turn) open a dialog on the current page; dialogs stack and you go back one layer at a time. Only "open in replay" inside a dialog navigates away.
+- **Live monitor and alerts**: a running session has three views: the route map, the agent graph (a ComfyUI-style node graph with motion) and cards (executing, thinking, waiting, idle). It also shows recent events and burn rate (USD and tokens, last 15 and 60 minutes and per hour), and alerts for commands running longer than 10 minutes, foreground polling, repeated failures, hook blocks, sub-agents past a step limit and context near the compaction point.
+- **Gestures**: two-finger swipe or wheel to pan, pinch or ⌘/Ctrl + wheel to zoom (timeline, route map and agent graph).
+- **Server**: restarts itself when it detects a source update under `src/`; when the port is taken it reuses the instance already running there, or picks another port.
+- **Sample data**: `./agent-replay demo` includes a running session that keeps changing, dispatching and handing back sub-agents on a timer.
+- **Newest-first toggle**: flip every list between newest-first and oldest-first; the choice is remembered in the browser.
+- **Light and dark themes**: follows the system setting.
+
+## Preview
+
+| Session list | Overview |
+| --- | --- |
+| ![Session list: filters, sorting, estimated amount and in-progress marker](docs/images/list.png) | ![Overview: amounts, tokens and time by category](docs/images/overview.png) |
+| Every session on the machine in one table, filterable and sortable. | Totals, breakdowns, and where the time went. |
+
+| Timeline | Time analysis |
+| --- | --- |
+| ![Timeline: multi-agent time axis colored by activity](docs/images/timeline.png) | ![Time analysis: critical path and waste detectors](docs/images/analysis.png) |
+| All agents on one time axis; zoom, filter and sort. | Critical path, 8 waste detectors (time, amount, evidence) and the slowest steps. |
+
+| Route map | Step-by-step replay |
+| --- | --- |
+| ![Route map: swim lanes laid out by time](docs/images/route.png) | ![Replay: the reason and call of every step](docs/images/replay.png) |
+| One lane per agent; dispatches and hand-backs as vertical lines. | Trigger, call, result, duration and estimated amount of every step. |
+
+| Live monitor |
+| --- |
+| ![Live monitor: route map, alerts and burn rate](docs/images/live.png) |
+| A running session: route map, agent graph and cards, plus alerts and burn rate. |
+
+## Supported sources
+
+**Claude Code** (`<claude dir>/projects/<project>/<session>.jsonl`, plus `<session>/subagents/agent-*.jsonl` and `.meta.json`)
+
+- Sees: user and assistant messages, every tool call and its result, the model and effort of each sub-agent, nesting, token usage per response (cache writes split by 5-minute and 1-hour TTL), hook blocks (`PreToolUse:<Tool> hook error: ...` results and Stop hooks), context compactions, background task notices, sub-agent hand-back reports, session titles.
+- Limits: the model's thinking text is not stored in the transcript, only how long it thought; reasons are reconstructed from what the agent wrote (see below).
+
+**Codex** (`<codex dir>/sessions/YYYY/MM/DD/rollout-*.jsonl` and `archived_sessions/`)
+
+- Sees: user messages, commands with exit codes and timing, patches, MCP calls, sub-agent threads linked through their parent thread (name, role, model, effort), reasoning summaries when recorded, token usage per response including cached, cache-written and reasoning tokens.
+- Limits: the briefing sent to a sub-agent is encrypted in the rollout, so only the dispatch parameters can be shown. Models that are not in the price table (for example `gpt-5.3-codex-spark`) have no amount: their tokens are counted and the page says how many steps were left out (see [Configuration](#configuration)).
+
+Both formats are internal details of the tools and may change; a new version can break parsing until it is updated here.
+
+## Privacy and security
+
+- **Read-only.** Session files are only opened for reading. The tool writes to its own `replays/` folder (index, cached pages, exported pages) and nowhere else.
+- **Local only.** The server binds to `127.0.0.1` and rejects requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>`. It makes no network requests and the pages load no external resources.
+- **What reaches the page.** Tool results are cut to their first 600 characters (`--output-chars`), tool inputs to a few thousand, and every string goes through rule-based redaction (bearer tokens, common API-key prefixes, `password=`/`token=`-style assignments, e-mail local parts). Redaction is best effort: prompts, agent messages, file paths and commands are still shown and may contain secrets the rules do not recognise.
+- **Exported pages contain session content.** A page written with `agent-replay <session> -o file.html` embeds prompts, commands, paths and agent text. Review it before sharing, and do not publish `replays/`.
+
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+
+## Configuration
+
+### Data directories
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `--claude-dir DIR` / `AGENT_REPLAY_CLAUDE_DIR` / `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code data root (contains `projects/`, `sessions/`) |
+| `--codex-dir DIR` / `AGENT_REPLAY_CODEX_DIR` / `CODEX_HOME` | `~/.codex` | Codex data root (contains `sessions/`, `archived_sessions/`, `session_index.jsonl`) |
+| `AGENT_REPLAY_HOME` | `<project>/replays` | Where exported pages and caches are written |
+| `AGENT_REPLAY_PORT` | `8790` | Port used by `agent-replay.command` only; the CLI uses `--port` |
+
+For each data root the first of these that is set wins, in the order listed: command line, `AGENT_REPLAY_*`, the tool's own variable (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`), then the default. On Windows the defaults are `%USERPROFILE%\.claude` and `%USERPROFILE%\.codex` (Windows is untested).
+
+### `src/prices.json`
+
+All amounts are **estimates in USD** from the official API list prices, not a bill: subscription plans (Claude Max, ChatGPT plans) are not billed per token, so the amounts are only for comparing and locating cost. The file holds, per tool (`claude`, `codex`):
+
+- `sources` and `read_date`: where the prices come from (Claude: platform.claude.com pricing page, OpenAI: developers.openai.com pricing page, Standard tier) and when they were read; the overview shows both under its footnote.
+- `models`: USD per million tokens, matched by the **exact model name** after a trailing date suffix is removed (`claude-haiku-4-5-20251001` finds `claude-haiku-4-5`). Claude entries have `input`, `cache_write_5m`, `cache_write_1h`, `cache_read`, `output`; Haiku 5.5 has `tiers`, chosen per request by prompt length (`max_prompt_tokens`, `null` = no limit). Codex entries have `input`, `cached_input`, `cache_write` (`null` = no separate price, billed as uncached input), `output` and an optional `long_context` block.
+- `_rules`: the pricing rules applied by `src/prices.py`: Claude cache writes are priced by TTL (without the breakdown the whole write counts as 5 minutes), `usage.inference_geo` = `us` multiplies by 1.1, a non-standard `service_tier` (fast mode) is priced at the standard rate and flagged; Codex input already contains cached and cache-written tokens (uncached = input - cached - cache write), output already contains reasoning tokens, and above 272,000 input tokens the long-context rates apply with cached input at 10% of the long-context input rate (an assumption: the page does not list it; long-context cache writes scale the model's cache-write rate by the same ratio as its input rate).
+- `unpriced`: models known to be missing from the price table, for example `gpt-5.3-codex-spark` and `gpt-4.5`. A model that is not in the table has no amount: its tokens are counted, it is left out of every total, and the pages say "N steps use an unpriced model and are not counted". Local or open-weight models (a name containing `/` or `:`, or starting with `ollama`) cost 0 and are marked as local.
+
+To update prices, edit the numbers (and `read_date`) and restart the server; pages cached from older prices are regenerated because the file is part of the code signature. Run `python3 scripts/test_prices.py` after changing rules.
+
+### `src/live.json`
+
+Thresholds for the live monitor; changes apply without a restart. Times are in seconds.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `ctxLimit`, `ctxLimitCodex` | 400000 | Context size (tokens) treated as the compaction point; above it an alert is raised |
+| `idleSec` | 300 | No writes for this long: the agent is shown as idle |
+| `endedSec` | 600 | No writes for this long: the session is treated as ended and polled slowly |
+| `longCmdSec` | 600 | A foreground command running longer than this raises the long-command alert |
+| `subStepLimit` | 150 | A sub-agent beyond this many steps raises an alert |
+| `hookRecentSec` | 600 | Window in which hook blocks are counted |
+| `failStreak` | 3 | Consecutive failed calls that raise an alert |
+| `staleSubSec` | 3600 | A sub-agent that never returned and wrote nothing for this long is not counted as running |
+| `releaseSec` | 1800 | Live state of a session is dropped after this long without requests |
+| `pollSec`, `slowPollSec` | 5, 60 | Refresh interval of the live page (active, ended) |
+| `returnedKeepSec` | 600 | How long the live API keeps a handed-back sub-agent (for the flow graph's hand-back animation and summary) |
+| `graphFadeSec`, `graphMaxNodes` | 60, 40 | Flow graph: a returned node fades for this long, then folds into the summary node; above this many nodes all returned ones fold at once |
+
+## CLI reference
+
+```text
+agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR]
+agent-replay demo  [--port N] [--no-open]
+agent-replay <session> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR]
+agent-replay --list [PROJECT] [-n N] [--claude-dir DIR] [--codex-dir DIR]
+```
+
+- `serve`: start the web app (default port 8790). If an instance already answers on that port it is reused; if the port is taken by something else, the next free port is used.
+- `demo`: generate sample sessions under `replays/demo/` and serve them (default port 8791). Real sessions are not read. The data is rebuilt on every run.
+- `<session>`: write one self-contained HTML page. `<session>` is an id prefix or a path to a `.jsonl` file (Claude Code or Codex). Without `-o` the page goes to `replays/`.
+- `--list`: print recent sessions; `PROJECT` filters by directory or name fragment, `-n` limits the count (default 30).
+
+## How "reasons" are reconstructed
+
+Transcripts do not contain the model's private reasoning, so the page does not claim to show it. For each step it lines up what the record does contain, from the most to the least direct:
+
+1. **Trigger**: the events right before the step: your message, a hook block or hook feedback, a sub-agent hand-back, a background task notice, a compaction.
+2. **What the agent said**: the text in the same response before the call, or in the previous response (marked as such).
+3. **The call's own description**: the `description` of a Bash call, a Codex justification or title.
+4. **Reasoning summary**: Codex reasoning summaries, when the rollout has them.
+5. **Dispatch parameters**: for sub-agents, model, effort, background or not, and the briefing. A briefing line that starts with `选档理由：` ("reason for the model choice") is highlighted as the dispatch reason; this is a convention, and briefings without it are shown normally.
+6. If nothing else exists, the step is shown as following up on the result of the previous step.
+
+Commands are sorted into read, test, write, git, wait and other by simple pattern matching, so the classification is a heuristic. A `git merge`, `git cherry-pick` or fast-forward to `main` is marked as a merge unless it runs in a path containing `worktree`.
+
+## Project layout
+
+```text
+agent-replay            command-line entry (POSIX shell, calls src/cli.py)
+agent-replay.command    double-click launcher for macOS
+agent-replay.cmd        launcher for Windows (untested)
+scripts/check.py        compile, syntax, unit tests and smoke checks (see Development)
+scripts/test_*.py|mjs   per-module unit tests on small data, run by check.py
+src/                    all source, grouped by responsibility:
+```
+
+| Group | Files | Responsibility |
+| --- | --- | --- |
+| Commands and config | `cli.py`, `config.py`, `sessions.py` | commands; data directories and cache locations; resolve a session argument, print the list |
+| Parsing | `parse.py`, `parse_codex.py`, `codex_scan.py`, `codex_calls.py`, `index.py`, `common.py`, `redact.py` | Claude Code and Codex transcripts -> one replay model; session index; categories, merge detection, totals; secret masking |
+| Pricing | `prices.py`, `prices.json`, `costcache.py` | per-step pricing and the price table; cached amounts for the session list |
+| Server | `server.py`, `render.py`, `boot.js`, `template.html`, `loading.html` | local HTTP app, background parse jobs, page cache, self-restart after a source change; assemble the single-file page; page routing and startup |
+| Live | `live.py`, `live_claude.py`, `live_codex.py`, `live.json`, `live.js`, `live_steps.py`, `live_steps.js` | incremental state and alerts for running sessions; the live page; incremental steps for replay pages |
+| Overview and lists | `list.*`, `overview.js`, `money.js`, `time_cats.js`, `views.js`, `view_agents.js`, `sub_status.js` | session list; overview; amount and token display; time by category; the sub-agents page and status column |
+| Timeline | `timeline.*`, `tl_*.js`, `tl_focus*.js`, `timeseg.js` | multi-agent timeline; single-agent view; time segmentation |
+| Route map | `route_*.js`, `route.css` | lane map data model, layout, rendering, navigation (zoom, mini-map) and live merging |
+| Analysis | `analysis*.js`, `analysis.css` | critical path, the 8 waste detectors, the time analysis page |
+| Dialogs | `modal*.js`, `modal.css` | model and rendering of the click-for-details dialogs (stacked) |
+| Terminal | `term*.js`, `term.css`, `steps*.js` | text model and rendering of the terminal view; the step table of the replay |
+| Flow graph | `graph_*.js`, `graph.css` | the live page's agent graph: layout, nodes, effects, status and mini-map |
+| Replay page | `replay.*`, `polish.css`, `util.js` | replay page shell, shared styles and helpers |
+| Sample data | `demo.py`, `demo_*.py` | synthetic sample sessions for `agent-replay demo` |
+
+`replays/` holds output, caches and demo data (git-ignored).
+
+## Development
+
+```sh
+python3 scripts/check.py
+```
+
+`scripts/check.py` runs these checks (it needs only Python; the JavaScript parts run when `node` is installed):
+
+1. Compile every `.py` file; run `node --check` on every `.js` file.
+2. Unit tests: time segmentation, terminal text, time analysis, the dialog model and the route map (`scripts/test_*.mjs`), plus pricing (`scripts/test_prices.py`).
+3. Generate the demo data, render the finished demo sessions and assert their agent and step counts; check the amounts against a hand calculation.
+4. Render every view of the demo pages against a stub DOM.
+5. Start the server on a free port and check `/`, `/api/sessions`, the live API, the incremental steps API, and that the server restarts itself after a source change. The server is stopped and the temporary data removed afterwards.
+
+### Conventions
+
+- Python standard library and plain JavaScript only, no external resources; session files are never written to.
+- Hand-written source files stay under 1000 lines each.
+- Tests assert only the key points, on small data, and do not depend on real sessions, the network or the clock.
+- **Every view's CSS class names carry a module prefix** (such as `rt-`, `tf-`, `ana-`, `term-`); do not use generic short names like `.tl` or `.tb`. All views' styles apply on the same page, so a clash overrides another view (it once squashed the timeline).
+- When you reuse a row structure or table from elsewhere, bring its column-width settings along, or the columns misalign.
+
+## Known limitations
+
+- Thinking text is not in the transcript, only how long it thought.
+- Codex sub-agent briefings are encrypted in the rollout, so only the dispatch parameters can be shown.
+- Windows is untested.
+- WorkBuddy and Cursor sessions are not supported yet.
+- Amounts are estimates at official API list prices, not a bill; models missing from the price table are left out of the amounts.
+
+## Troubleshooting
+
+- **"Service is updating" / the page restarts**: when a file under `src/` changes, the running server notices on the next request, answers with a short notice, waits for parse jobs to finish (at most 30 s) and re-executes itself on the same port; the open pages retry on their own.
+- **Port already in use**: `serve` reuses an AgentReplay instance that is already running on that port, otherwise it moves to the next free port and prints the address. Use `--port` to choose one.
+- **No sessions listed**: check that the data directories are right (`./agent-replay --list`). If your tools keep their data elsewhere, set `CLAUDE_CONFIG_DIR` / `CODEX_HOME` or pass `--claude-dir` / `--codex-dir`.
+- **First start is slow**: the first run builds an index of all sessions (cached in `replays/.cache`); later starts only rescan changed files.
+- **A large session takes a while to open**: its first parse can take tens of seconds; a progress page is shown, and the finished page is cached until the session changes.
+- **The live page stopped updating**: browsers pause timers in background tabs, so the live page pauses refreshing while its tab is hidden and resumes when you return.
+- **403 "forbidden host"**: open the app as `http://127.0.0.1:<port>/` or `http://localhost:<port>/`, not through a LAN address or a proxy.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE); attribution notices are in [NOTICE](NOTICE).

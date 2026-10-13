@@ -34,12 +34,12 @@ function triggerBody(tr, a) {
 
 function turnHead(t, a) {
   const tr = t.trig, steps = t.steps;
-  const cost = steps.reduce((x, s) => x + s.cost, 0);
+  const sum = sumSteps(steps);
   const t0 = steps.length ? steps[0].ts : tr.ts, t1 = steps.length ? Math.max.apply(null, steps.map(s => s.end)) : tr.ts;
   const lag = steps.length && tr.ts ? Math.max(0, steps[0].ts - tr.ts) : 0;
   return '<header class="turn-h k-' + esc(tr.k) + '"><div class="th-l"><span class="badge b-' + esc(tr.k) + '">' + esc(EV_LABEL[tr.k] || tr.k) +
     '</span><time>' + fmtTS(tr.ts) + '</time></div><div class="th-body">' + triggerBody(tr, a) + '</div><div class="th-r">' +
-    '<span class="num">' + steps.length + '</span> 步 · ' + fmtDur(t1 - t0) + ' · <span class="num">' + fmtCost(cost) + '</span>' + (lag > 2000 ? '<br><span class="dim">' + fmtDur(lag) + ' 后开始动作</span>' : '') + '</div></header>';
+    '<span class="num">' + steps.length + '</span> 步 · ' + fmtDur(t1 - t0) + ' · <span class="num">' + costHTML(sum.cost, sum.tok, {inline: true, note: unpricedNote({nUnp: sum.nUnp})}) + '</span>' + (lag > 2000 ? '<br><span class="dim">' + fmtDur(lag) + ' 后开始动作</span>' : '') + '</div></header>';
 }
 
 function evLine(e) {
@@ -106,7 +106,7 @@ function rowHTML(s, c, ci, first, a, idx) {
     '<div class="c-why">' + whyHTML(s, c, first, a) + '</div>' +
     '<div class="c-cmd" title="' + esc(clip(c && c.inp ? c.inp : sum, 1200)) + '">' + esc(sum) + '</div>' +
     '<div class="c-dur">' + durHTML(c) + '</div>' +
-    '<div class="c-cost">' + (first ? '<b>' + fmtCost(s.cost) + '</b>' : '') + '</div>' +
+    '<div class="c-cost">' + (first ? stepCostHTML(s, {unit: false}) : '') + '</div>' +
     '<div class="c-ctx">' + (first ? fmtTok(s.ctx) : '') + '</div>' +
     '<div class="c-st">' + statusHTML(c) + '</div></div></div>';
 }
@@ -115,70 +115,104 @@ function pre(label, text, cls, copy) {
   return text ? '<div class="blk ' + (cls || '') + '"><h5>' + label + (copy ? ' ' + copyBtn(text) : '') + '</h5><pre>' + esc(text) + '</pre></div>' : '';
 }
 
-function detailHTML(a, s, c) {
-  const h = [];
+/* Why a step happened, assembled by source (also used by the detail dialog, modal.js). */
+function detailWhyHTML(s, c) {
   const why = [];
   s.cause.forEach(k => why.push('<li><b>触发事件</b> ' + fmtTS(k.ts) + ' ' + esc(EV_LABEL[k.k] || k.k) + '：' + esc(clip(k.text, 600)) + '</li>'));
   if (s.said) why.push('<li><b>代理的说明</b>（' + (s.saidSrc === 'prev' ? '来自上一条消息' : '同一条消息') + '）<div class="quote">' + esc(s.said) + '</div></li>');
   if (c && c.desc) why.push('<li><b>调用自带的描述</b> ' + esc(c.desc) + '</li>');
   if (s.rsum) why.push('<li><b>推理摘要</b>（模型自述，加密的原始推理不可用）<div class="quote">' + esc(s.rsum) + '</div></li>');
   if (!s.cause.length && s.after != null) why.push('<li><b>承接</b> 上一步 #' + s.after + ' 的结果</li>');
-  h.push('<div class="blk"><h5>为什么调用（按来源拼出，' + (TOOL === 'codex' ? 'Codex 的原始推理是加密的，只有摘要可用' : '思考内容未被记录') + '）</h5><ul class="whys">' + (why.join('') || '<li class="dim">没有可还原的原因</li>') + '</ul></div>');
-  if (!c) h.push(pre('回复全文', s.says));
-  if (c) {
-    if (c.disp) {
-      const ch = A[c.agent];
-      let d = '<div class="blk disp"><h5>派单</h5><div>' + (ch ? agentChip(ch.model, ch.fam, ch.effort) + ' ' + agentLink(ch.id, ch.desc) : famChip(c.disp.model, c.disp.effort)) +
-        ' · ' + (c.disp.bg ? '后台' : '前台') + (c.disp.type ? ' · ' + esc(c.disp.type) : '') + '</div>';
-      if (c.disp.reason) d += '<div class="reasonline">' + esc(c.disp.reason) + '</div>';
-      if (ch) {
-        d += '<div class="dim">子代理运行 ' + fmtDT(ch.start) + ' → ' + fmtClock(ch.end) + '（' + fmtDur(ch.end - ch.start) + '）· ' + ch.nsteps + ' 步 · 额度 ' + fmtCost(ch.cost) + '</div>';
-        d += clampBlock(ch.briefing, 'brief', 3);
-      }
-      h.push(d + '</div>');
+  return '<div class="blk"><h5>为什么调用（按来源拼出，' + (TOOL === 'codex' ? 'Codex 的原始推理是加密的，只有摘要可用' : '思考内容未被记录') + '）</h5><ul class="whys">' + (why.join('') || '<li class="dim">没有可还原的原因</li>') + '</ul></div>';
+}
+
+/* One call of a step: dispatch target, background completion, full input, hook reason, (truncated) result. */
+function detailCallHTML(c) {
+  const h = [];
+  if (c.disp) {
+    const ch = A[c.agent];
+    let d = '<div class="blk disp"><h5>派单</h5><div>' + (ch ? agentChip(ch.model, ch.fam, ch.effort) + ' ' + agentLink(ch.id, ch.desc) : famChip(c.disp.model, c.disp.effort)) +
+      ' · ' + (c.disp.bg ? '后台' : '前台') + (c.disp.type ? ' · ' + esc(c.disp.type) : '') + '</div>';
+    if (c.disp.reason) d += '<div class="reasonline">' + esc(c.disp.reason) + '</div>';
+    if (ch) {
+      d += '<div class="dim">子代理运行 ' + fmtDT(ch.start) + ' → ' + fmtClock(ch.end) + '（' + fmtDur(ch.end - ch.start) + '）· ' + ch.nsteps + ' 步 · 预估金额 ' + costHTML(ch.cost, ch.tok, {inline: true}) + '</div>';
+      d += clampBlock(ch.briefing, 'brief', 3);
     }
-    if (c.notif) h.push('<div class="blk"><h5>后台任务完成</h5><div>' + (c.bgDone ? fmtDT(c.bgDone) + '，距启动 ' + fmtDur(c.bgDur) + ' · ' : '') + esc(c.notif.status) + ' · ' + esc(c.notif.text) + '</div></div>');
-    h.push(pre(c.name === 'Bash' ? '命令' : '输入', c.inp || c.sum, '', true));
-    if (c.st === 'hook') h.push(pre('钩子拦截理由（全文）', c.hook, 'bad'));
-    else h.push(pre('结果' + (c.rlen > c.res.length ? '（共 ' + c.rlen + ' 字符，保留前 ' + D.meta.outChars + '）' : ''), c.res, c.st === 'err' ? 'bad' : ''));
+    h.push(d + '</div>');
   }
-  const u = s.u;
-  h.push('<div class="dim tokline">模型 ' + esc(s.model || s.fam) + (s.effort ? '·' + esc(s.effort) : '') + ' · 输入' + (TOOL === 'codex' ? '（未缓存）' : '') + ' ' + u[0] + ' · 输出 ' + u[1] +
-    (s.rsn != null ? '（含推理 ' + s.rsn + '）' : '') + ' · 缓存写 ' + u[2] + ' · 缓存读 ' + u[3] +
-    ' · 上下文 ' + fmtTok(s.ctx) + ' · ' + QL + ' ' + fmtCost(s.cost) + (s.think ? ' · 思考 ' + fmtDur(s.think) : '') + ' · 模型间隔 ' + fmtDur(s.gap) + '</div>');
+  if (c.notif) h.push('<div class="blk"><h5>后台任务完成</h5><div>' + (c.bgDone ? fmtDT(c.bgDone) + '，距启动 ' + fmtDur(c.bgDur) + ' · ' : '') + esc(c.notif.status) + ' · ' + esc(c.notif.text) + '</div></div>');
+  h.push(pre(c.name === 'Bash' ? '命令' : '输入', c.inp || c.sum, '', true));
+  if (c.st === 'hook') h.push(pre('钩子拦截理由（全文）', c.hook, 'bad'));
+  else h.push(pre('结果' + (c.rlen > c.res.length ? '（共 ' + c.rlen + ' 字符，保留前 ' + D.meta.outChars + '）' : ''), c.res, c.st === 'err' ? 'bad' : ''));
   return h.join('');
+}
+
+/* Model, token parts, context, amount and timing of a step, as one line. */
+function detailTokHTML(s) {
+  const t = s.tok, note = stepNote(s);
+  return '<div class="dim tokline">模型 ' + esc(s.model || s.fam) + (s.effort ? '·' + esc(s.effort) : '') + ' · 未缓存输入 ' + t.in + ' · 缓存写入 ' + (t.cw5 + t.cw1) +
+    (t.cw1 ? '（5 分钟 ' + t.cw5 + ' / 1 小时 ' + t.cw1 + '）' : '') + ' · 缓存读取 ' + t.cr + ' · 输出 ' + t.out + (t.rsn != null ? '（含推理 ' + t.rsn + '）' : '') +
+    ' · 上下文 ' + fmtTok(s.ctx) + ' · 预估金额 ' + (s.cost == null ? '未定价' : moneyH(s.cost)) + (note ? '（' + esc(note) + '）' : '') +
+    (s.think ? ' · 思考 ' + fmtDur(s.think) : '') + ' · 模型间隔 ' + fmtDur(s.gap) + '</div>';
+}
+
+function detailHTML(a, s, c) {
+  const h = [detailWhyHTML(s, c)];
+  if (!c) h.push(pre('回复全文', s.says));
+  if (c) h.push(detailCallHTML(c));
+  h.push(detailTokHTML(s));
+  return h.join('');
+}
+
+/* HTML chunks (chronological) for the steps from stFrom and the events from evFrom of turn t. Registers every row in `meta`
+ * (filters and the detail view read it) and `byStep`; t._tbl remembers how far this view has rendered, for live appends. */
+const turnHuman = t => ['human', 'followup'].includes(t.trig.k) || t.evs.some(e => e.k === 'human');
+
+function turnChunks(a, t, stFrom, evFrom, meta, byStep) {
+  const human = turnHuman(t);
+  const chunks = [];
+  let evi = evFrom;
+  const flushEv = n => { while (evi < t.evs.length && t.evs[evi].at <= n) chunks.push(evLine(t.evs[evi++])); };
+  for (let si = stFrom; si < t.steps.length; si++) {
+    const s = t.steps[si];
+    flushEv(si);
+    chunks.push(stepRows(a, s, t, human, meta, byStep));
+  }
+  flushEv(1e9);
+  t._tbl = {st: t.steps.length, ev: evi};
+  return chunks;
+}
+
+/* The rows (one per call) of a step; (re)registers them in meta / byStep. */
+function stepRows(a, s, t, human, meta, byStep) {
+  const calls = s.calls.length ? s.calls : [null];
+  byStep[s.n] = [];
+  let html = '';
+  calls.forEach((c, ci) => {
+    meta.push({s, c, t, human, hay: null});
+    byStep[s.n].push(meta.length - 1);
+    html += rowHTML(s, c, ci, ci === 0, a, meta.length - 1);
+  });
+  return html;
+}
+
+function turnSection(a, t, ti, meta, byStep) {
+  const chunks = turnChunks(a, t, 0, 0, meta, byStep);
+  return '<section class="turn" data-ti="' + ti + '" data-human="' + (turnHuman(t) ? 1 : 0) + '">' + turnHead(t, a) + '<div class="turn-b">' + (newestFirst() ? chunks.reverse() : chunks).join('') + '</div></section>';
 }
 
 function renderSteps(a, root, jump) {
   const meta = [], byStep = {};
-  const turnHtml = [];
-  a.turns.forEach((t, ti) => {
-    const human = ['human', 'followup'].includes(t.trig.k) || t.evs.some(e => e.k === 'human');
-    const chunks = [];
-    let evi = 0;
-    const flushEv = n => { while (evi < t.evs.length && t.evs[evi].at <= n) chunks.push(evLine(t.evs[evi++])); };
-    t.steps.forEach((s, si) => {
-      flushEv(si);
-      const calls = s.calls.length ? s.calls : [null];
-      let rowsHtml = '';
-      calls.forEach((c, ci) => {
-        meta.push({s, c, t, human, hay: null});
-        (byStep[s.n] = byStep[s.n] || []).push(meta.length - 1);
-        rowsHtml += rowHTML(s, c, ci, ci === 0, a, meta.length - 1);
-      });
-      chunks.push(rowsHtml);
-    });
-    flushEv(1e9);
-    turnHtml.push('<section class="turn" data-ti="' + ti + '" data-human="' + (human ? 1 : 0) + '">' + turnHead(t, a) + '<div class="turn-b">' + (newestFirst() ? chunks.reverse() : chunks).join('') + '</div></section>');
-  });
+  const turnHtml = a.turns.map((t, ti) => turnSection(a, t, ti, meta, byStep));
   const html = ordered(turnHtml).join('');
   root.innerHTML = '<div class="fbar"><label><input type="checkbox" data-f="disp"> 只看派单</label><label><input type="checkbox" data-f="hook"> 只看被拦截</label>' +
     '<label><input type="checkbox" data-f="long"> 只看超过 60 秒</label><label><input type="checkbox" data-f="user"> 只看用户消息</label>' +
     '<input type="search" class="q" placeholder="搜索原因、命令、结果…" aria-label="搜索步骤"><span class="fcount dim"></span></div>' +
-    '<div class="colhead"><div>时间</div><div>工具</div><div>原因（触发 / 说明 / 描述 / 派单）</div><div>命令或输入</div><div class="r">耗时</div><div class="r">' + QL + '</div><div class="r">上下文</div><div class="r">结果</div></div>' +
+    '<div class="colhead"><div>时间</div><div>工具</div><div>原因（触发 / 说明 / 描述 / 派单）</div><div>命令或输入</div><div class="r">耗时</div><div class="r">预估金额</div><div class="r">上下文</div><div class="r">结果</div></div>' +
     '<div class="steps">' + (html || emptyState('没有记录到步骤', '这个代理还没有产生模型响应。')) + '</div><div class="empty" id="noresult" hidden><b>没有符合条件的步骤</b><span>换个关键词，或取消上面的筛选。</span></div>';
   const f = {disp: false, hook: false, long: false, user: false, q: ''};
-  const rows = root.querySelectorAll('.rw'), turns = root.querySelectorAll('.turn'), cnt = root.querySelector('.fcount');
+  let rows = root.querySelectorAll('.rw'), turns = root.querySelectorAll('.turn');
+  const cnt = root.querySelector('.fcount');
   function hay(m) {
     if (m.hay == null) {
       const c = m.c, s = m.s;
@@ -188,6 +222,8 @@ function renderSteps(a, root, jump) {
     return m.hay;
   }
   function apply() {
+    rows = root.querySelectorAll('.rw');  // live appends add rows and turns
+    turns = root.querySelectorAll('.turn');
     const q = f.q.trim().toLowerCase();
     let shown = 0;
     rows.forEach(el => {
@@ -234,6 +270,7 @@ function renderSteps(a, root, jump) {
   if (rows.length > 1500) root.querySelector('.steps').classList.add('cv');
   apply();
   fitClamps(root);
+  root._tbl = {append: info => appendSteps(a, root, meta, byStep, info, apply)};
   if (jump && jump.t) revealStep(root, a, meta, byStep, jump);
 }
 
@@ -265,4 +302,39 @@ function revealStep(root, a, meta, byStep, jump) {
   frame(go);
   setTimeout(go, 350);
   setTimeout(go, 1000);
+}
+
+/* Live update of a rendered list. info (see live_steps.js): {touched: turn indexes with new steps / events, updated: [{s}] steps whose
+ * calls changed, redo: turn index to render from scratch or null}. Rows go where the active order puts newer content and the
+ * reader's position is kept; new rows flash. */
+function appendSteps(a, root, meta, byStep, info, applyFilters) {
+  const stepsEl = root.querySelector('.steps');
+  if (!stepsEl) return;
+  const fresh = [];
+  keepScroll(root, '.rw,.turn-h', () => {
+    stepsEl.querySelectorAll(':scope > .empty').forEach(e => e.remove());
+    info.touched.forEach(ti => {
+      const t = a.turns[ti];
+      let sec = stepsEl.querySelector('.turn[data-ti="' + ti + '"]');
+      if (sec && info.redo === ti) { sec.remove(); sec = null; }
+      if (!sec) {
+        stepsEl.insertAdjacentHTML(newestFirst() ? 'afterbegin' : 'beforeend', turnSection(a, t, ti, meta, byStep));
+        return;
+      }
+      const from = t._tbl || {st: 0, ev: 0};
+      const chunks = turnChunks(a, t, from.st, from.ev, meta, byStep);
+      sec.querySelector('.turn-h').outerHTML = turnHead(t, a);
+      if (chunks.length) sec.querySelector('.turn-b').insertAdjacentHTML(newestFirst() ? 'afterbegin' : 'beforeend', (newestFirst() ? chunks.reverse() : chunks).join(''));
+    });
+    info.updated.forEach(({s, ti}) => {
+      const t = a.turns[ti], old = Array.from(root.querySelectorAll('.rw[data-sn="' + s.n + '"]'));
+      if (!old.length) return;
+      old[0].insertAdjacentHTML('beforebegin', stepRows(a, s, t, turnHuman(t), meta, byStep));
+      old.forEach(el => el.remove());
+    });
+  });
+  info.added.forEach(({s}) => root.querySelectorAll('.rw[data-sn="' + s.n + '"]').forEach(el => fresh.push(el)));
+  fresh.forEach(el => flashEl(el));
+  applyFilters();
+  fitClamps(root);
 }

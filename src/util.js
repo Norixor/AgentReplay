@@ -62,15 +62,22 @@ function legacyCopy(text, done) {
   ta.remove();
 }
 
-/* ---- jump targets: #main?t=<ts>&k=turn  /  #agent/<id>?t=<ts> */
+/* ---- replay hashes: #main?t=<ts>&k=turn  /  #agent/<id>?t=<ts>; jumpTo opens the detail dialog instead of navigating */
 function jumpHash(agentId, ts, turn, stepN) {
   return (agentId === 'main' ? '#main' : '#agent/' + agentId) + (ts ? '?t=' + Math.round(ts) + (turn ? '&k=turn' : '') + (stepN != null ? '&s=' + stepN : '') : '');
 }
+/* Opens the detail dialog (modal.js) for "agent X at time ts": a clicked bar, mark, table row or event. Nothing navigates. */
 function jumpTo(agentId, ts, turn, stepN) {
-  if (!A[agentId]) { location.hash = '#main'; toast('回看数据里没有这个代理，点「刷新回看数据」更新。'); return; }
+  const spec = mdFromTime(agentId, ts, turn, stepN);
+  if (!spec) { toast('回看数据里没有这个代理，点「刷新回看数据」更新。'); return; }
+  showDetail(spec);
+  if (ts && ts > D.meta.end + 3000) toast('这一步发生在回看数据生成之后，点「刷新回看数据」才看得到。');
+}
+/* The old behaviour: leave for the replay page at that place. Only used for explicit "open in the replay" requests. */
+function jumpToReplay(agentId, ts, turn, stepN) {
+  if (!A[agentId]) { toast('回看数据里没有这个代理，点「刷新回看数据」更新。'); return; }
   const target = jumpHash(agentId, ts, turn, stepN);
   if (location.hash === target) route(); else location.hash = target;
-  if (ts && ts > D.meta.end + 3000) toast('这一步发生在回看数据生成之后，点「刷新回看数据」才看得到。');
 }
 let toastTimer = 0;
 function toast(msg) {
@@ -109,4 +116,31 @@ function frame(fn) {
   const run = () => { if (!done) { done = true; fn(); } };
   requestAnimationFrame(run);
   setTimeout(run, 80);
+}
+
+/* ---- live updates: keep the reader's place while content is inserted, and flash what is new */
+/* Runs fn (which adds content around the reader) and then scrolls so that the first element of `sel` in view stays where it was.
+ * Nothing is done when the page is at the very top: a reader at the top of a newest-first list should see the new rows. */
+function keepScroll(root, sel, fn) {
+  const top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 60) + 4;
+  let anchor = null, y0 = 0;
+  if (window.scrollY > 2) {
+    const els = root.querySelectorAll(sel);
+    for (let i = 0; i < els.length; i++) {
+      const r = els[i].getBoundingClientRect();
+      if (r.bottom > top && r.height > 0) { anchor = els[i]; y0 = r.top; break; }
+    }
+  }
+  fn();
+  if (anchor && anchor.isConnected) {
+    const dy = anchor.getBoundingClientRect().top - y0;
+    if (Math.abs(dy) > 1) window.scrollBy(0, dy);
+  }
+}
+/* Highlight that fades out after about two seconds (the .hl-new animation). */
+function flashEl(el, ms) {
+  el.classList.remove('hl-new');
+  void el.offsetWidth;  // restart the animation if it is already running
+  el.classList.add('hl-new');
+  setTimeout(() => el.classList.remove('hl-new'), ms || 2100);
 }

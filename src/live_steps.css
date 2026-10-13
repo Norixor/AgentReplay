@@ -1,0 +1,16 @@
+/* Live update of the step lists: status line, view switch, fade of new rows. */
+.sh{display:flex;align-items:center;gap:12px}
+.vseg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;font-size:12px;font-weight:400}
+.vseg button{background:var(--panel);color:var(--dim);border:0;padding:3px 12px;cursor:pointer}
+.vseg button+button{border-left:1px solid var(--line)}
+.vseg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.lsbar{display:flex;align-items:center;gap:8px;font-size:12.5px;margin:6px 0 8px}
+.lsbar:empty{display:none}
+.lsbar .grow{flex:1}
+.lsbar button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 10px;cursor:pointer}
+.ls-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none;animation:lspulse 1.8s ease-in-out infinite}
+.lsbar[data-state="off"] .ls-dot{background:var(--dim);animation:none}
+.hl-new{animation:hlnew 2s ease-out 1}
+@keyframes hlnew{0%{background:var(--hl);box-shadow:inset 3px 0 0 var(--accent)}100%{background:transparent;box-shadow:inset 3px 0 0 transparent}}
+@keyframes lspulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.ls-dot{animation:none}.hl-new{animation-duration:.01s}}

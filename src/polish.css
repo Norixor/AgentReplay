@@ -109,3 +109,10 @@ pre,.tl,.tblwrap,.turn,.card,.fbar{max-width:100%}
 .w-disp b{background:var(--opus-bg)}
 .w-rsum b{background:var(--chip-slate)}
 .b-goal,.b-goalstatus{background:var(--chip-amber)}
+
+/* Estimated amount (main value) and token total (secondary value), see money.js */
+.mny{font-weight:600}.mny.unp{font-weight:400;color:var(--dim)}
+.tkv{color:var(--dim);font-size:11px;white-space:nowrap}
+.cellcost .tkv{display:block}.cellcost{text-align:right;line-height:1.25}
+.tc-h{margin:10px 0 4px;font-size:13px}.tc-h:first-of-type{margin-top:0}.tc-h .dim{font-weight:400;font-size:12px}
+.price-note{margin-top:18px}.price-note+details{margin-top:6px}

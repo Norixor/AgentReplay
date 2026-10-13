@@ -19,13 +19,13 @@ TURN_KINDS = {"human", "handback", "xsession", "goal", "local", "interrupt", "me
 IDLE_KINDS = {"notify", "silent"}
 
 
+_FAMILY = re.compile(r"haiku|sonnet|opus|fable")
+
+
 def family(model):
-    key, _ = prices.lookup("claude", model)
-    return key or "sonnet"
-
-
-def msg_cost(fam, u):
-    return prices.cost(prices.load("claude")["models"].get(fam), u)
+    """Model family used for colours and grouping (haiku / sonnet / opus / fable); other names group under 'other'."""
+    m = _FAMILY.search((model or "").lower())
+    return m.group(0) if m else "other"
 
 
 def read_rows(path, progress=None):
@@ -50,6 +50,34 @@ def read_rows(path, progress=None):
         progress(acc)
     return rows
 
+
+
+def read_rows_inc(path, cache):
+    """Like read_rows, but keeps the parsed rows per file in `cache` and reads only the bytes appended since the last call.
+
+    Only complete lines (ending in a newline) are consumed, so a row that is still being written is picked up next time.
+    The returned list is shared with the cache: callers must not modify it or its rows.
+    """
+    ent = cache.get(path)
+    size = os.path.getsize(path)
+    if ent is None or size < ent["pos"]:  # new file, or truncated / replaced: start over
+        ent = cache[path] = {"pos": 0, "rows": []}
+    if size == ent["pos"]:
+        return ent["rows"]
+    with open(path, "rb") as f:
+        f.seek(ent["pos"])
+        data = f.read(size - ent["pos"])
+    end = data.rfind(b"\n") + 1
+    for line in data[:end].split(b"\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ent["rows"].append(json.loads(line.decode("utf-8", "replace")))
+        except ValueError:
+            pass
+    ent["pos"] += end
+    return ent["rows"]
 
 
 def flat(c):
@@ -205,7 +233,7 @@ def build_agent(aid, rows, ctx, meta=None):
             m = r["message"]
             mid = m.get("id") or r.get("uuid")
             if mid not in msgs:
-                msgs[mid] = {"id": mid, "model": m.get("model"), "ts": ts, "usage": {}, "blocks": [], "think": 0}
+                msgs[mid] = {"id": mid, "model": m.get("model"), "ts": ts, "usage": {}, "blocks": [], "think": 0, "fin": ts, "stop": ""}
                 seq.append(("msg", mid))
             mm = msgs[mid]
             u = m.get("usage") or {}
@@ -214,6 +242,8 @@ def build_agent(aid, rows, ctx, meta=None):
             if m.get("model"):
                 mm["model"] = m["model"]
             mm["think"] += r.get("thinkingDurationMs") or 0
+            mm["fin"] = max(mm["fin"] or 0, ts or 0)  # a message is written block by block: the last row marks its completion
+            mm["stop"] = m.get("stop_reason") or mm["stop"]
             for b in m.get("content") or []:
                 if b.get("type") in ("text", "tool_use"):
                     mm["blocks"].append(dict(b, ts=ts, cwd=r.get("cwd") or ""))
@@ -301,9 +331,8 @@ def build_agent(aid, rows, ctx, meta=None):
                 last_act = max(last_act or 0, ev["ts"])
             continue
         mm = msgs[x]
-        u = mm["usage"]
-        uu = [u.get("input_tokens", 0) or 0, u.get("output_tokens", 0) or 0,
-              u.get("cache_creation_input_tokens", 0) or 0, u.get("cache_read_input_tokens", 0) or 0]
+        pr = prices.claude_step(mm["model"], mm["usage"])
+        tk = pr["tok"]
         fam = family(mm["model"])
         texts_before, texts_all, calls_raw, seen_tool = [], [], [], False
         for b in mm["blocks"]:
@@ -324,13 +353,17 @@ def build_agent(aid, rows, ctx, meta=None):
         for b in calls_raw:
             calls.append(make_call(b, results.get(b["id"]), ctx))
             end_ts = max(end_ts, b["ts"] + calls[-1]["dur"]) if not calls[-1]["bg"] else end_ts
-        cost = msg_cost(fam, uu)
         step = {"n": len(steps_flat), "ts": mm["ts"], "end": end_ts, "fam": fam, "model": mm["model"] or "",
-                "cost": cost, "ctx": uu[0] + uu[2] + uu[3], "u": uu, "think": mm["think"],
+                "cost": pr["cost"], "priced": pr["priced"], "tok": tk, "ctx": tk["in"] + tk["cw5"] + tk["cw1"] + tk["cr"],
+                "think": mm["think"], "fin": mm["fin"], "stop": mm["stop"],
                 "gap": max(0, mm["ts"] - last_act) if last_act else 0,
                 "said": said, "saidSrc": src, "says": "\n\n".join(texts_all) if not calls_raw else "",
                 "cause": pending, "after": steps_flat[-1]["n"] if steps_flat and not pending else None,
                 "calls": calls}
+        if pr["local"]:
+            step["local"] = True
+        if pr["fast"]:
+            step["fast"] = True
         pending = []
         steps_flat.append(step)
         cur["steps"].append(step)
@@ -416,8 +449,12 @@ def scan_notifs(all_rows):
     return out
 
 
-def parse_session(jsonl_path, session_name="", out_chars=600, inp_chars=6000, progress=None):
-    """progress(done_bytes, total_bytes, label) is called while reading files; it may be None."""
+def parse_session(jsonl_path, session_name="", out_chars=600, inp_chars=6000, progress=None, rows_cache=None):
+    """progress(done_bytes, total_bytes, label) is called while reading files; it may be None.
+
+    rows_cache: optional dict kept by the caller between calls; unchanged files are not re-read and appended bytes are
+    read incrementally (live view). Without it every call reads all files from scratch.
+    """
     sid = os.path.basename(jsonl_path)[:-6]
     sdir = os.path.join(os.path.dirname(jsonl_path), sid)
     subdir = os.path.join(sdir, "subagents")
@@ -425,7 +462,7 @@ def parse_session(jsonl_path, session_name="", out_chars=600, inp_chars=6000, pr
     if os.path.isdir(subdir):
         sub_files = [fn for fn in sorted(os.listdir(subdir)) if fn.startswith("agent-") and fn.endswith(".jsonl")]
     tracker = Progress(progress, os.path.getsize(jsonl_path) + sum(os.path.getsize(os.path.join(subdir, fn)) for fn in sub_files))
-    main_rows = read_rows(jsonl_path, tracker.add)
+    main_rows = read_rows_inc(jsonl_path, rows_cache) if rows_cache is not None else read_rows(jsonl_path, tracker.add)
     subs = []  # (agent id, meta, rows)
     for fn in sub_files:
         aid = fn[6:-6]
@@ -437,7 +474,8 @@ def parse_session(jsonl_path, session_name="", out_chars=600, inp_chars=6000, pr
                     meta = json.load(mf)
             except ValueError:
                 pass
-        subs.append((aid, meta, read_rows(os.path.join(subdir, fn), tracker.add)))
+        sp = os.path.join(subdir, fn)
+        subs.append((aid, meta, read_rows_inc(sp, rows_cache) if rows_cache is not None else read_rows(sp, tracker.add)))
     tracker.label("整理步骤")
     ctx = {"out": out_chars, "inp": inp_chars, "family": family,
            "tu_agent": {m.get("toolUseId"): aid for aid, m, _ in subs if m.get("toolUseId")},
@@ -448,9 +486,9 @@ def parse_session(jsonl_path, session_name="", out_chars=600, inp_chars=6000, pr
     for aid, meta, rows in subs:
         agents.append(build_agent(aid, rows, ctx, meta))
     link_agents(agents)
-    meta_out = {"tool": "claude", "unit": "quota", "priced": True, "sid": sid, "name": session_name or sid[:8],
+    meta_out = {"tool": "claude", "pricing": prices.meta("claude"), "sid": sid, "name": session_name or sid[:8],
                 "start": main["start"], "end": max(a["end"] for a in agents),
                 "outChars": out_chars, "inpChars": inp_chars, "project": next(
                     (r.get("cwd") for r in main_rows if r.get("cwd")), ""),
-                "prices": {k: list(v) for k, v in prices.load("claude")["models"].items()}, "rows": len(main_rows)}
+                "rows": len(main_rows)}
     return {"meta": meta_out, "agents": agents, "totals": totals(agents)}

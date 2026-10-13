@@ -1,0 +1,63 @@
+/* Detail dialog (modal.js). Colours come from the page theme variables, so light and dark both follow the page. */
+html.md-lock{overflow:hidden}
+.md-back{position:fixed;inset:0;z-index:80;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;padding:16px;animation:md-fade .12s ease-out}
+.md-win{width:min(900px,92vw);max-height:85vh;display:flex;flex-direction:column;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.4);outline:0;animation:md-pop .14s ease-out}
+.md-h{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex:none}
+.md-h h2{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-bk,.md-x,.md-open,.md-pre-more,.md-mini{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+.md-bk{color:var(--accent);border-color:var(--accent);flex:none}
+.md-x{width:32px;height:32px;padding:0;font-size:20px;line-height:1;flex:none}
+.md-bk:hover,.md-x:hover,.md-open:hover,.md-pre-more:hover,.md-mini:hover{background:var(--accent-soft)}
+.md-bk:focus-visible,.md-x:focus-visible,.md-open:focus-visible,.md-win summary:focus-visible,.md-pre-more:focus-visible,.md-mini:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.md-body{flex:1;min-height:0;overflow:auto;padding:6px 16px 16px;overscroll-behavior:contain}
+.md-f{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:8px 14px;border-top:1px solid var(--line);flex:none}
+.md-note{margin-right:auto;font-size:12px}
+.md-open{font-size:13px}
+.md-mini{font-size:11px;padding:1px 7px;margin-left:4px;vertical-align:baseline}
+.md-in{margin:8px 0}
+.md-sh{font-size:14px;margin:16px 0 6px}
+.md-callh{font-size:13px;margin:14px 0 2px}
+.md-facts{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0;padding:8px 12px;background:var(--code);border-radius:8px;font-size:13px}
+.md-facts i{display:block;font-style:normal;font-size:11px;color:var(--dim)}
+.md-chips{margin:8px 0;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.md-stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.md-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0 12px}
+.md-kids{margin:6px 0 0;padding:0;list-style:none}.md-kids li{padding:3px 0;border-bottom:1px solid var(--line)}.md-kids li:last-child{border:0}
+.md-fold{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+.md-fold>summary{cursor:pointer;font-weight:600}
+.md-ls{margin:6px 0}
+.md-list{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.md-st{border-top:1px solid var(--line)}.md-st:first-child{border-top:0}
+/* One fixed-column line per step. The ▸ marker is a grid item too, so it gets its own 12px track:
+   marker | time | [agent] | tool | summary | duration | amount + tokens | status */
+.md-st>summary{display:grid;grid-template-columns:12px 104px 112px minmax(0,1fr) 64px 118px 40px;gap:0 10px;align-items:center;
+  padding:7px 12px;cursor:pointer;font-size:13px;list-style:none;white-space:nowrap}
+.md-multi .md-st>summary{grid-template-columns:12px 104px 120px 112px minmax(0,1fr) 64px 118px 40px}
+.md-st>summary>*{min-width:0}
+.md-st>summary::-webkit-details-marker{display:none}
+.md-st>summary::before{content:"▸";color:var(--dim)}
+.md-tl{display:inline-flex;align-items:center;gap:4px;overflow:hidden}
+.md-tl .tool{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.md-c{display:inline-flex;justify-content:flex-end;align-items:baseline;gap:6px}
+.md-c .tkv{color:var(--dim);font-size:11px}
+.md-s{text-align:center}
+.md-st[open]>summary::before{content:"▾"}
+.md-st>summary:hover,.md-st[open]>summary{background:var(--accent-soft)}
+.md-st>summary .md-t{font-variant-numeric:tabular-nums}.md-st>summary small{color:var(--dim);margin-left:4px}
+.md-ag{color:var(--dim);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-sum{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.md-d,.md-c,.md-s{text-align:right;white-space:nowrap}
+.md-sb{padding:4px 14px 12px 26px;background:var(--bg);border-top:1px dashed var(--line)}
+.md-win .blk pre.md-full{max-height:none}
+.md-pre-more{display:block;margin:4px 0 0;font-size:12px;padding:2px 9px}
+.md-win .stat{padding:8px 12px}
+@keyframes md-fade{from{opacity:0}to{opacity:1}}
+@keyframes md-pop{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media (max-width:600px){
+  .md-back{padding:0;align-items:stretch}
+  .md-win{width:100vw;max-height:none;height:100%;border-radius:0;border:0}
+  .md-st>summary,.md-multi .md-st>summary{grid-template-columns:12px 64px 88px minmax(0,1fr) 36px}
+  .md-st>summary .md-ag,.md-st>summary .md-d,.md-st>summary .md-c,.md-st>summary small{display:none}
+  .md-facts{gap:6px 12px}
+}
+@media (prefers-reduced-motion:reduce){.md-back,.md-win{animation:none}}

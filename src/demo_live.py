@@ -2,8 +2,12 @@
 
 The history is back-dated so that one sub-agent has been running a shell command for 12+ minutes (the live page raises
 its long-command alert). While `agent-replay demo` runs, LiveFeeder appends new steps every few seconds to the main
-transcript and one sub-agent, and once spawns another sub-agent, so the live page, event stream and burn rate keep moving.
+transcript and one sub-agent. Every 20-30 seconds it also spawns a short-lived sub-agent (now and then that sub-agent
+spawns a nested one and waits for it), lets each of them work for a minute or two and hands it back, and sprinkles in
+hook stops, failed calls, merges into main and context compactions. The flow graph on the live page has something to
+show at all times; one sub-agent (the e2e run) keeps executing a long command throughout.
 """
+import random
 import threading
 import time
 
@@ -13,6 +17,11 @@ REPO = "/home/demo/acme-storefront"
 WT = "/home/demo/acme-storefront-worktrees"
 SID = "c7e41b09-2d53-4f8a-a6b2-91d0e3f57c48"
 MIN = 60_000
+# (description, model, effort, worktree name) of the short-lived workers the feeder spawns, in rotation.
+WORKERS = [("Order list cursor loader", "sonnet", "medium", "cursor-ui"), ("Cursor docs refresh", "haiku", "high", "cursor-docs"),
+           ("Legacy page param audit", "opus", "medium", "cursor-legacy"), ("Mobile client contract check", "sonnet", "medium", "cursor-mobile"),
+           ("Index plan review", "fable", "high", "cursor-index"), ("Cursor error messages", "haiku", "high", "cursor-errors")]
+NESTED = [("Query plan check", "haiku", "high"), ("Fixture refresh", "haiku", "high"), ("Snapshot update", "sonnet", "medium")]
 
 
 def cat(*lines):
@@ -125,35 +134,135 @@ def build(claude_dir, now):
     return ses
 
 
+class Worker:
+    """A live sub-agent the feeder keeps writing to until its time is up."""
+
+    def __init__(self, tx, root, born, life_s, desc, nested=False, parent=None):
+        self.tx, self.root, self.born, self.life, self.desc = tx, root, born, life_s * 1000, desc
+        self.nested, self.parent, self.steps, self.open = nested, parent, 0, None   # open: the call still waiting for its result row
+        self.seed = random.randrange(100)
+        self.child = None
+
+
 class LiveFeeder(threading.Thread):
-    """Appends one step every `period` seconds, alternating between the main transcript and the endpoint sub-agent."""
+    """Appends one step every `period` seconds, rotating between the main transcript, the endpoint sub-agent and the
+    short-lived workers, and spawns / retires workers on a timer so the sub-agent tree keeps changing."""
 
     def __init__(self, ses, period=3.0):
         super().__init__(daemon=True)
         self.ses, self.period, self.stop_flag, self.n = ses, period, threading.Event(), 0
         self.endpoint = next(c for c, meta in ses.subs if meta["description"] == "Orders endpoint cursor support")
+        self.rng = random.Random()
+        self.workers, self.rr, self.spawned, self.nested_n, self.main_n, self.ep_n = [], 0, 0, 0, 0, 0
+        self.next_spawn = int(time.time() * 1000) + 9_000
+
+    # ------------------------------------------------------------ helpers
+
+    def dispatch_call(self, desc, model, effort, wt, nested, bg):
+        brief = "In %s/%s work on one slice of the cursor pagination change: %s. Commit on its own branch and report in under 80 words.\n选档理由：the slice is small and its contract is fixed; %s %s is enough." % (WT, wt, desc, model, effort)
+        return Dispatch(desc, model, effort, brief, lambda tx: tx.step("Reading the files this slice touches.", [Read("%s/%s/web/src/OrderList.tsx" % (WT, wt), cat("export function OrderList() {"))], think=0.3),
+                        bg=bg, live=True, worktree="%s/%s" % (WT, wt))
+
+    def spawn(self, now):
+        base = [w for w in self.workers if not w.nested]
+        if len(base) >= 5:
+            return
+        desc, model, effort, wt = WORKERS[self.spawned % len(WORKERS)]
+        if self.spawned >= len(WORKERS):
+            desc += " (%d)" % (self.spawned // len(WORKERS) + 1)
+        self.spawned += 1
+        ses = self.ses
+        ses.main.t = now - 800
+        ses.main.step("Another slice can run in parallel; delegating it.", [self.dispatch_call(desc, model, effort, wt, False, True)], think=0.5)
+        self.workers.append(Worker(ses.subs[-1][0], "%s/%s" % (WT, wt), now, self.rng.uniform(65, 105), desc))
+
+    def spawn_nested(self, w, now):
+        desc, model, effort = NESTED[self.nested_n % len(NESTED)]
+        self.nested_n += 1
+        call = dict(self.dispatch_call(desc, model, effort, "cursor-nested", True, False), pending=True)
+        w.tx.t = max(w.tx.t, now - 1500)
+        w.tx.step("This part is independent; splitting it off and waiting for the answer.", [call], think=0.4)
+        life = max(20.0, min(self.rng.uniform(28, 42), (w.born + w.life - now) / 1000 - 14))
+        child = Worker(self.ses.subs[-1][0], "%s/cursor-nested" % WT, now, life, desc, nested=True, parent=w)
+        w.child, w.open = child, {"id": call["id"], "due": None}
+        self.workers.append(child)
+
+    def run_step(self, w, now):
+        """One step of a worker as a call that stays open for a few seconds, so the page sees it executing."""
+        if w.open:
+            return
+        if not w.nested and w.child is None and w.steps >= 2 and now - w.born > 18_000 and w.born + w.life - now > 55_000 and self.rng.random() < 0.5:
+            self.spawn_nested(w, now)
+            return
+        said, calls = step_for(w.steps + w.seed, w.root, 8)
+        w.steps += 1
+        if calls[0].get("err") and self.rng.random() > 0.3:  # failures and hook stops stay occasional
+            said, calls = "", [Bash("npm run lint -- src/api", "> eslint src/api\n", 6.0)]
+        call = dict(calls[0], pending=True)
+        w.tx.t = max(w.tx.t, now - 500)
+        w.tx.step(said or "Continuing with this slice.", [call], think=0.4)
+        w.open = {"id": call["id"], "due": now + max(call["dur"], 0.8) * 1600, "res": call["res"], "err": bool(call.get("err"))}
+
+    def close_open(self, w, now):
+        o = w.open
+        if o and o["due"] is not None and now >= o["due"]:
+            w.tx.result(o["id"], o["res"], now - 100, o["err"])
+            w.open = None
+
+    def retire(self, w, now):
+        tx = w.tx
+        if w.open and w.open["due"] is not None:
+            self.close_open(w, now + 10_000)
+        tx.t = max(tx.t, now - 500)
+        tx.report = "Slice done on %s: change committed on its branch, checks green." % w.root.rsplit("/", 1)[-1]
+        tx.step(tx.report, stop="end_turn", think=0.3)
+        if w.parent is not None:  # the waiting parent gets the report as the result of its foreground Agent call
+            w.parent.tx.result(w.parent.open["id"], tx.report, now + 200)
+            w.parent.open, w.parent.child = None, None
+        self.workers.remove(w)
+
+    # ------------------------------------------------------------ one tick
 
     def tick(self):
-        ses, n = self.ses, self.n
+        ses = self.ses
         now = int(time.time() * 1000)
         ses.now = now
-        if n == 4:  # a new sub-agent appears
-            ses.main.t = now - 800
-            ses.main.step("The endpoint is moving; I will start the list UI in parallel.", [Dispatch(
-                "Order list cursor loader", "sonnet", "medium",
-                "In %s/cursor-ui change web/src/OrderList.tsx to load further pages with nextCursor (infinite scroll), keeping the legacy fallback. Commit on feat/cursor-ui.\n选档理由：UI follows the documented contract; sonnet medium." % WT,
-                lambda tx: tx.step("Reading the current list component.", [Read(WT + "/cursor-ui/web/src/OrderList.tsx", cat("export function OrderList() {", "  const { items, next } = useOrders();"))], think=1.0),
-                bg=True, live=True, worktree=WT + "/cursor-ui")], think=0.5)
-        elif n % 2 == 0:
-            ses.main.t = now - 1200
-            said, calls = step_for(n // 2, REPO)
-            ses.main.step(said, calls, think=0.5)
-        else:
+        for w in list(self.workers):
+            self.close_open(w, now)
+        for w in sorted(self.workers, key=lambda x: not x.nested):  # nested workers first: a parent waits for its child
+            if now >= w.born + w.life and (w.nested or w.child is None):
+                self.retire(w, now)
+        if now >= self.next_spawn:
+            self.spawn(now)
+            self.next_spawn = now + int(self.rng.uniform(20, 30) * 1000)
+        act = self.n % 3
+        if act == 0:
+            self.main_tick(now)
+        elif act == 1:
             self.endpoint.t = now - 1200
-            said, calls = step_for(n // 2 + 40, WT + "/cursor-api")
+            said, calls = step_for(self.ep_n + 40, WT + "/cursor-api")
+            self.ep_n += 1
             self.endpoint.step(said or "Continuing with the endpoint change.", calls, think=0.5)
+        elif self.workers:
+            self.rr += 1
+            self.run_step(self.workers[self.rr % len(self.workers)], now)
         ses.flush()
         self.n += 1
+
+    def main_tick(self, now):
+        m = self.ses.main
+        if m.ctx > 330_000:  # context compaction: the context bar on the graph falls back
+            m.t = now - 4000
+            m.compact("Summary of the work so far: cursor helpers merged, endpoint and list UI in progress, e2e running.")
+        m.t = now - 1200
+        n = self.main_n
+        self.main_n += 1
+        if n % 20 == 19:  # a merge into main from the integration workspace
+            m.step("A finished slice can go into main now.", [Bash("git merge --no-ff feat/cursor-ui -m \"Merge cursor ui\"",
+                   "Merge made by the 'ort' strategy.\n web/src/OrderList.tsx | 14 ++++++++------\n 1 file changed, 8 insertions(+), 6 deletions(-)", 0.9, desc="Merge cursor ui")], think=0.5)
+            return
+        said, calls = step_for(n, REPO)
+        m.step(said, calls, think=0.5)
 
     def run(self):
         while not self.stop_flag.wait(self.period):

@@ -2,6 +2,7 @@
 /* Timeline data model: per-agent segments and markers, dispatch links, the collapsed-idle time warp and overview buckets. */
 
 const CAT_KEYS = ['read', 'test', 'write', 'git', 'wait', 'agent', 'other'];
+const TL_SUBWAIT = 8;                    // colour slot of "waiting for sub-agents" (7 is the long-command colour of the model mode)
 const GAP_MS = 15 * 60 * 1000;          // all-agents idle longer than this is collapsed
 const MK = {                              // marker kinds: glyph colour variable, label
   user: {c: '--accent', t: '用户消息'}, compact: {c: '--bad', t: '上下文压缩'}, hook: {c: '--bad', t: '钩子拦截'},
@@ -30,12 +31,14 @@ function timelineModel() {
   });
   const rows = {};
   D.agents.forEach(a => {
+    // Tool segments come from the shared time segmentation (one category per instant, foreground dispatches are "waiting").
     const segs = [], bg = [], marks = [];
+    timeSegments(a).forEach(sg => {
+      if (sg.c) segs.push({a: sg.t0, b: sg.t1, cat: sg.cat === 'subwait' ? TL_SUBWAIT : CAT_KEYS.indexOf(sg.cat), tcat: sg.cat, s: sg.s, c: sg.c, long: !!sg.c.long});
+    });
     a.turns.forEach(t => {
       t.steps.forEach(s => s.calls.forEach(c => {
-        if (c.bg) {
-          if (c.bgDone && c.bgDone > c.ts) bg.push({a: c.ts, b: c.bgDone, cat: CAT_KEYS.indexOf(c.cat), s, c});
-        } else if (c.dur > 0) segs.push({a: c.ts, b: c.ts + c.dur, cat: CAT_KEYS.indexOf(c.cat), s, c, long: !!c.long});
+        if (c.bg && c.bgDone && c.bgDone > c.ts) bg.push({a: c.ts, b: c.bgDone, cat: CAT_KEYS.indexOf(c.cat), s, c});
         if (c.st === 'hook') marks.push({ts: c.ts, kind: 'hook', s, c});
         else if (c.st === 'err') marks.push({ts: c.ts, kind: 'fail', s, c});
         if (c.merge) marks.push({ts: c.ts, kind: 'merge', s, c});
@@ -45,7 +48,6 @@ function timelineModel() {
         if (e.k === 'compact' && e.ts) marks.push({ts: e.ts, kind: 'compact', e});
       });
     });
-    segs.sort((x, y) => x.a - y.a);
     bg.sort((x, y) => x.a - y.a);
     const long = segs.filter(x => x.long);
     segs.maxDur = segs.reduce((m, x) => Math.max(m, x.b - x.a), 0);
@@ -60,7 +62,7 @@ function timelineModel() {
     if (ts) pr.marks.push({ts, kind: 'back', child: ch});
   });
   Object.values(rows).forEach(r => r.marks.sort((x, y) => x.ts - y.ts));
-  _model = {rows, disp};
+  _model = {rows, disp, hb};
   return _model;
 }
 

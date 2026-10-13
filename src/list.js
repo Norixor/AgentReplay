@@ -9,6 +9,14 @@ function fmtT(ms) {
   return d.getFullYear() === new Date().getFullYear() ? md : d.getFullYear() + '-' + md;
 }
 function fmtSize(n) { return n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB'; }
+function fmtTok(n) { n = Math.round(n || 0); return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n); }
+/* Same rules as money.js on the session page: <$0.01, two decimals under $100, whole dollars above. */
+function fmtMoney(c) { return c <= 0 ? '$0.00' : c < 0.01 ? '<$0.01' : c < 100 ? '$' + c.toFixed(2) : '$' + Math.round(c).toLocaleString('en-US'); }
+/* Known only for sessions opened (parsed) before and unchanged since; otherwise empty. */
+function costCell(r) {
+  if (r.cost == null) return '';
+  return '<span class="mny"' + (r.unp ? ' title="' + r.unp + ' 步模型未定价，未计入金额"' : '') + '>' + esc(fmtMoney(r.cost)) + (r.unp ? '*' : '') + '</span><span class="tkv">' + fmtTok(r.tok) + ' token</span>';
+}
 function dayStart(s) { return s ? new Date(s + 'T00:00:00').getTime() : null; }
 
 const LSTATE = {exec: '执行中', think: '思考中', waiting: '等子代理', idle: '空闲'};
@@ -20,11 +28,12 @@ const COLS = [
   {k: 'start', t: '开始', v: r => r.start || 0, cls: 'hn'},
   {k: 'end', t: '最后更新', v: r => r.end || 0},
   {k: 'size', t: '大小', v: r => r.size, cls: 'r hn'},
+  {k: 'cost', t: '预估金额', v: r => r.cost == null ? -1 : r.cost, cls: 'r hn'},
   {k: 'subs', t: '子代理', v: r => r.subs, cls: 'r hn'},
   {k: 'live', t: '当前状态', v: r => r.live ? 4 - (LORDER[r.live.state] || 0) : r.status === 'active' ? 1 : 0},
   {k: 'status', t: '状态', v: r => r.status === 'active' ? 2 : r.archived ? 1 : 0, cls: 'hn'}
 ];
-let rows = [], sortKey = 'end', asc = false, shown = 150, lastAuto = 0, state = 'loading', errMsg = '';
+let rows = [], sortKey = 'end', asc = false, shown = 150, lastAuto = 0, state = 'loading', errMsg = '', updating = false;
 const PAGE = 150;
 
 function statusOf(r) { return r.status === 'active' ? 'active' : r.archived ? 'archived' : 'idle'; }
@@ -62,7 +71,7 @@ function draw() {
     return '<tr data-href="' + href + '" class="' + (r.status === 'active' ? 'is-active' : '') + '"><td><span class="src src-' + r.tool + '">' + (r.tool === 'claude' ? 'Claude Code' : 'Codex') + '</span></td>' +
       '<td class="nm' + (r.named ? '' : ' un') + '" title="' + esc(name + '\n' + r.id) + '"><a href="' + href + '">' + esc(name) + '</a> <button type="button" class="cp" data-cp="' + esc(r.id) + '" title="复制会话 id" aria-label="复制会话 id">id</button></td>' +
       '<td class="proj hn" title="' + esc(r.cwd) + '">' + esc(r.project) + '</td><td class="t hn">' + fmtT(r.start) + '</td><td class="t">' + fmtT(r.end) + '</td>' +
-      '<td class="num hn">' + fmtSize(r.size) + '</td><td class="num hn">' + (r.subs || '') + '</td>' +
+      '<td class="num hn">' + fmtSize(r.size) + '</td><td class="cellcost hn" title="打开过并且之后没有变化的会话才有；金额按官方标价估算">' + costCell(r) + '</td><td class="num hn">' + (r.subs || '') + '</td>' +
       '<td class="livecell">' + liveCell(r) + '</td>' +
       '<td class="hn">' + (r.status === 'active' ? '' : r.archived ? '<span class="st">已归档</span>' : '') + '</td></tr>';
   }).join('');
@@ -74,6 +83,7 @@ function draw() {
   st.hidden = state === 'ok';
   st.className = 'empty' + (state === 'error' ? ' err' : '');
   st.innerHTML = state === 'loading' ? '<b>正在读取会话索引…</b><span>第一次扫描大量会话文件可能要几秒。</span>'
+    : state === 'updating' ? '<b>服务更新中</b><span>源码刚更新，服务正在重启，几秒后自动重试。</span>'
     : state === 'error' ? '<b>读取会话列表失败</b><span>' + esc(errMsg) + '。请确认 agent-replay serve 仍在运行。</span><button type="button" id="retry">重试</button>' : '';
   const rt = $('retry');
   if (rt) rt.onclick = () => load(false);
@@ -93,16 +103,20 @@ async function load(force) {
   if (!rows.length) { state = 'loading'; draw(); }
   try {
     const r = await fetch('/api/sessions' + (force ? '?refresh=1' : ''), {cache: 'no-store'});
+    if (r.status === 503) { updating = true; throw new Error('服务更新中'); }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
+    updating = false;
     rows = d.rows;
     state = 'ok';
     $('meta').textContent = '索引 ' + d.stats.total + ' 个文件，本次重扫 ' + d.stats.scanned + ' 个，用时 ' + d.stats.seconds.toFixed(2) + ' 秒';
     fillProjects();
     lastAuto = Date.now();
   } catch (e) {
-    state = 'error';
+    // The server re-executes itself after a source update: retry quietly instead of showing an error.
+    state = updating ? 'updating' : 'error';
     errMsg = String(e && e.message || e);
+    if (updating) setTimeout(() => load(false), 3000);
   }
   draw();
   $('refresh').disabled = false;
@@ -114,6 +128,7 @@ async function pollLive() {
   if (document.hidden || state !== 'ok') return;
   try {
     const r = await fetch('/api/live-list', {cache: 'no-store'});
+    if (r.status === 503) { updating = true; setTimeout(() => load(false), 3000); return; }
     if (!r.ok) return;
     const d = await r.json();
     const byKey = {};
@@ -134,7 +149,7 @@ setInterval(pollLive, 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastAuto > 15000) pollLive(); });
 setInterval(() => {
   const n = rows.some(r => r.status === 'active');
-  $('auto').textContent = n && lastAuto ? '进行中会话每 15 秒自动刷新 · 上次 ' + Math.max(0, Math.round((Date.now() - lastAuto) / 1000)) + ' 秒前' : '';
+  $('auto').textContent = updating && state !== 'ok' ? '服务更新中，几秒后自动重试' : n && lastAuto ? '进行中会话每 15 秒自动刷新 · 上次 ' + Math.max(0, Math.round((Date.now() - lastAuto) / 1000)) + ' 秒前' : '';
 }, 1000);
 
 function sortBy(k) {

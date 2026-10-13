@@ -18,6 +18,14 @@
 .lg-mk svg{fill:currentColor;stroke:currentColor}
 .lg-mk .mk-user{color:var(--accent)}.lg-mk .mk-compact,.lg-mk .mk-hook{color:var(--bad)}.lg-mk .mk-merge{color:var(--ok)}.lg-mk .mk-fail{color:var(--warn-ink)}.lg-mk .mk-back{color:var(--c-git)}
 .lg-mk.off{opacity:.4;text-decoration:line-through}
+/* Legend entries double as filters */
+.lg-it{display:inline-flex;align-items:center;gap:2px;padding:1px 8px;font:inherit;font-size:12px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:12px;cursor:pointer;user-select:none}
+.lg-it:hover{background:var(--accent-soft);border-color:var(--line)}
+.lg-it:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.lg-it.off{opacity:.42;text-decoration:line-through}
+.lg-it.off .sw{filter:grayscale(1)}
+.lg-reset{padding:1px 10px;font:inherit;font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--line);border-radius:12px;cursor:pointer}
+.lg-reset:hover{border-color:var(--accent)}
 /* overflow:clip (not hidden): hidden would make .tl the sticky scroll container */
 .tl{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:clip;--lw:230px;touch-action:pan-y}
 .tl-ov,.tl-axis,.tl-body{display:grid;grid-template-columns:var(--lw) minmax(0,1fr)}
@@ -37,3 +45,6 @@
 .zoomto{padding:0 5px;font-size:11px;flex:none;line-height:18px}
 @media (max-width:700px){.tl{--lw:112px}.tl-lab{font-size:11px;padding:3px 4px}.tl-ovp{height:54px}}
 .tip .mono{color:var(--ink)}
+
+.tl-sortw{display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+.tl-sortw select{max-width:9em}

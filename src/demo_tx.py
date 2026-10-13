@@ -93,8 +93,10 @@ class Tx:
         grow = rng.randint(4000, 11000) if self.aid == "main" else rng.randint(1500, 6000)
         self.ctx += grow
         out = 40 + (len(text) + sum(len(json.dumps(c["inp"])) for c in calls)) // 3 + rng.randint(0, 60)
+        h1 = grow // 3 if self.aid == "main" else 0  # the main agent writes part of its cache with the 1 hour TTL
         return {"input_tokens": rng.randint(2, 9), "cache_creation_input_tokens": grow, "cache_read_input_tokens": self.ctx - grow,
-                "output_tokens": out, "service_tier": "standard"}
+                "cache_creation": {"ephemeral_5m_input_tokens": grow - h1, "ephemeral_1h_input_tokens": h1},
+                "output_tokens": out, "service_tier": "standard", "inference_geo": "not_available"}
 
     def step(self, said="", calls=(), think=2.0, stop=None):
         """One model response (possibly several tool calls). Advances the clock past the slowest call."""
@@ -117,11 +119,11 @@ class Tx:
                                                     "stop_reason": (stop or ("tool_use" if calls else "end_turn")) if last else None, "usage": usage}, **extra)
         end = ts + len(blocks)
         for c in calls:
-            if c.get("pending"):  # started but never finished: no result row
-                continue
             res, dur = c["res"], c["dur"]
             if c.get("sub"):
-                res, dur = ses.run_sub(self, c, ts + len(blocks) + 800)
+                res, dur = ses.run_sub(self, c, ts + len(blocks) + 800)  # also for a pending call: the sub-agent file must exist
+            if c.get("pending"):  # started but not finished (yet): no result row; Tx.result() can add it later
+                continue
             done = ts + len(blocks) + int(dur * 1000) + 5
             block = {"type": "tool_result", "tool_use_id": c["id"], "content": res}
             if c.get("err"):
@@ -129,6 +131,14 @@ class Tx:
             self.emit(done, "user", message={"role": "user", "content": [block]})
             end = max(end, done)
         self.t = end + 300
+
+    def result(self, call_id, text, ts, err=False):
+        """Append the tool_result row of a call that was written with pending=True."""
+        block = {"type": "tool_result", "tool_use_id": call_id, "content": text}
+        if err:
+            block["is_error"] = True
+        self.emit(ts, "user", message={"role": "user", "content": [block]})
+        self.t = max(self.t, ts + 300)
 
     def finish(self, report, handback=False):
         """Sub-agent ending: return the report as the last text, or through SubagentHandback."""

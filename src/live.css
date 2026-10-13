@@ -39,3 +39,10 @@
 .spark-lab{display:flex;justify-content:space-between;font-size:11px}
 .lcols{grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))}
 @media (max-width:700px){.lgrid{grid-template-columns:minmax(0,1fr)}.levents li{grid-template-columns:auto auto minmax(0,1fr)}.evag{display:none}.evtx{grid-column:1/-1}}
+/* Sub-agent status column / header (sub_status.js) */
+.sx-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px;vertical-align:1px;animation:pulse 1.2s infinite}
+@media (prefers-reduced-motion:reduce){.sx-dot{animation:none}}
+.sx-run{font-size:12px;color:var(--dim)}.sx-now{font-size:12px;margin-top:2px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl tr.is-running td{background:var(--accent-soft)}.tbl tr.is-running td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.sx-seg{display:inline-flex;gap:0}.sx-seg button{border-radius:0;margin:0}.sx-seg button:first-child{border-radius:6px 0 0 6px}.sx-seg button:last-child{border-radius:0 6px 6px 0}.sx-seg button.on{background:var(--accent);border-color:var(--accent);color:var(--chip-ink)}
+.sx-head{margin:6px 0 10px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.sx-head .sx-now{max-width:none;white-space:normal}

@@ -9,6 +9,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config  # noqa: E402
+import prices  # noqa: E402
 import sessions  # noqa: E402
 from render import build_html  # noqa: E402
 
@@ -77,9 +78,13 @@ def main(argv=None):
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
     t = info["totals"]
-    unit = "额度 %.1f 相对单位" % t["cost"] if info["tool"] == "claude" or t.get("rsn") is None else "token %d（未配置价格时不含缓存读取）" % t["cost"]
+    cost = "预估金额 %s（主 %s，子 %s）· token %s" % (prices.fmt_money(t["cost"]), prices.fmt_money(t["mainCost"]), prices.fmt_money(t["subCost"]),
+                                              prices.fmt_tokens(prices.tok_total(t["tok"])))
+    if t["nUnp"]:
+        cost += "；%d 步的模型未定价（%s），未计入金额" % (t["nUnp"], "、".join(t["unpModels"]))
     print("已生成 %s（%.1f MB）" % (out, info["bytes"] / 1e6))
-    print("来源 %s，主代理 %d 步，子代理 %d 个，总计 %s%s" % (tool, t["mainSteps"], info["agents"], unit, "，已缩短内容" if info["shrunk"] else ""))
+    print("来源 %s，主代理 %d 步，子代理 %d 个，%s%s" % (tool, t["mainSteps"], info["agents"], cost, "，已缩短内容" if info["shrunk"] else ""))
+    print("金额按官方 API 标价估算（%s 读取）；订阅套餐不按 token 计费，只用于比较成本" % prices.meta(tool)["readDate"])
     return 0
 
 

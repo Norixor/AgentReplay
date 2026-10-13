@@ -7,8 +7,6 @@ const MAIN = D.agents[0];
 const SUBS = D.agents.slice(1);
 const TOOL = D.meta.tool || 'claude';
 const TOOL_NAME = {claude: 'Claude Code', codex: 'Codex'}[TOOL] || TOOL;
-const UNIT_TOKEN = D.meta.unit === 'token';  // no price configured: the "cost" fields hold token counts
-const QL = UNIT_TOKEN ? 'token' : '额度';
 
 const CAT_LABEL = {read: '读代码与文档', test: '测试与检查', write: '写代码', git: 'git', wait: '等待与轮询', agent: '派子代理', other: '其他'};
 const CAT_SHORT = {read: '读', test: '测', write: '写', git: 'git', wait: '等', agent: '派', other: '其他'};
@@ -44,7 +42,6 @@ function fmtDur(ms) {
   const h = Math.floor(m / 60);
   return h + ' 时 ' + (m % 60) + ' 分';
 }
-function fmtCost(c) { if (UNIT_TOKEN) return fmtTok(Math.round(c)); return c > 0 && c < 0.05 ? '<0.1' : c.toFixed(1); }
 function fmtTok(n) { n = Math.round(n || 0); return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
 function firstLine(s) { return String(s || '').split('\n').find(l => l.trim()) || ''; }
@@ -71,7 +68,8 @@ function agentChip(model, fam, effort) {
 function agentLink(id, label) {
   const a = A[id];
   if (!a) return esc(label || id);
-  return '<a class="alink" href="#' + (id === 'main' ? 'main' : 'agent/' + esc(id)) + '">' + esc(label || a.desc) + '</a>';
+  // Opens the agent summary dialog (modal.js); the href stays for middle click and copy link.
+  return '<a class="alink" href="#' + (id === 'main' ? 'main' : 'agent/' + esc(id)) + '"' + mdAttr({type: 'agent', agent: id}) + '>' + esc(label || a.desc) + '</a>';
 }
 
 /* Long text: clamped to a few lines with a toggle (see util.js); the full text is also the hover title. */
