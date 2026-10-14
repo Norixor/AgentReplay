@@ -145,17 +145,20 @@ cd AgentReplay
 **Gemini CLI**（`<gemini 目录>/tmp/<项目>/chats/session-*.jsonl`，旧版为整文档的 `session-*.json`；子代理会话在 `chats/<主会话 id>/<子代理 id>.jsonl`）
 
 - 能看到：用户消息、每次模型响应及其 token（输入、缓存、输出、思考）、思考摘要（主题与说明）、工具调用（参数、返回、成功或失败）、通过 `invoke_agent` 的 `agentId` 关联起来的子代理会话（派单提示词和交回结果都是可读的）。项目名来自 `projects.json` 与各项目目录里的 `.project_root`。
-- 局限：没有实时页，进行中的会话只能刷新回看页。时间都是按记录里的时间戳估算的：消息的时间是写入时刻，工具调用的时间是完成时刻，所以工具耗时 = 工具完成时刻 − 发起它的消息的时刻，同一条消息里并行的多个工具会互相重叠；新版 CLI 的思考时间戳与消息相同，因此不显示思考时长。Gemini A2A 服务写出的 `a2a-serv` 会话只有用户消息、没有模型回复，列表里不显示（除非正在进行中）。同一条模型消息在文件里会写两遍，按 `id` 合并后才计 token。
+- 实时页：支持。Gemini 的工具调用在文件里只在跑完之后才落盘（时间戳是完成时刻），所以看不到“正在执行的工具”：单个工具执行期间，代理按最后一条记录的时间显示为“思考中”，超过 `idleSec` 变“空闲”；一轮真正结束后最多 5 分钟仍显示“思考中”。子代理的会话文件先于主会话里的 `invoke_agent` 记录出现，所以子代理运行期间名字暂显示为“子代理 · id 前缀”，调用写入后才更新，期间主代理显示“等待”。`$rewindTo` 会撤销该消息之后已计入的 token、金额、步数和上下文，但已出现的事件不会撤销。上下文压缩点沿用 `ctxLimit`（默认 400000，Gemini 的窗口更大，可在 `live.json` 调整）。
+- 局限：时间都是按记录里的时间戳估算的：消息的时间是写入时刻，工具调用的时间是完成时刻，所以工具耗时 = 工具完成时刻 − 发起它的消息的时刻，同一条消息里并行的多个工具会互相重叠；新版 CLI 的思考时间戳与消息相同，因此不显示思考时长。Gemini A2A 服务写出的 `a2a-serv` 会话只有用户消息、没有模型回复，列表里不显示（除非正在进行中）。同一条模型消息在文件里会写两遍，按 `id` 合并后才计 token。
 
 **opencode**（`<opencode 目录>/opencode*.db`，一个 SQLite 数据库，内含所有项目的全部会话）
 
 - 能看到：用户消息、每次模型响应（一条助手消息一步）的 token 用量（含推理、缓存读取、缓存写入）、带起止时间的工具调用（命令、读写、搜索、网页抓取等，含失败与非零退出码）、`reasoning` 推理摘要、通过 `parent_id` 关联的子会话（`task` 工具派出）及其简报、中断与模型调用出错、会话标题与归档状态。
-- 局限：没有实时页（数据库是 opencode 自己的工作库，这里只读，不做轮询）；金额按模型名匹配 `claude`、`codex`、`gemini`、`other` 四段价格表计算，匹配不上的模型（以及经网关使用的 `org/model` 名）没有金额，token 照常统计；opencode 自己记录的 `cost` 常为 0，不使用。工具的大块输出被 opencode 另存到 `tool-output/` 时，页面只有数据库里保留的那部分。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
+- 实时页：支持。每次刷新先比较数据库与 `-wal` 的大小和修改时间，没有变化就不连库；有变化才开一个只读短连接，只读自上次水位以来更新过的消息和片段，用完即关。进行中的消息只有步数没有金额（token 在消息完成后才写入）；工具调用在片段为 pending / running 时显示为执行中。子代理按 `parent_id` 发现，结束以它自己最后一条助手消息正常结束或父会话里的 `task` 调用返回为准。窗口（约 61 分钟）之前的助手消息只计数，不计金额；opencode 被强行关闭后遗留的“运行中”片段会一直显示为执行中，直到该消息有最终结束原因。上下文压缩点沿用 `ctxLimit`，不同模型的窗口不同，可在 `live.json` 调整。
+- 局限：金额按模型名匹配 `claude`、`codex`、`gemini`、`other` 四段价格表计算，匹配不上的模型（以及经网关使用的 `org/model` 名）没有金额，token 照常统计；opencode 自己记录的 `cost` 常为 0，不使用。工具的大块输出被 opencode 另存到 `tool-output/` 时，页面只有数据库里保留的那部分。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
 
 **Cursor**（`<cursor 目录>/User/globalStorage/state.vscdb`，Cursor 编辑器的一个 SQLite 数据库，内含所有工作区的聊天）
 
 - 能看到：用户消息，每次模型响应（记录里文字、思考、每个工具调用是分开的消息，按同一次响应合并成一步）、思考摘要（Cursor 不一定保存文字，但保存时长）、工具调用（读写、搜索、终端命令等，含失败、被取消和被拒绝的调用，终端命令的非零退出码按失败算）、通过 `task_v2` 工具关联起来的子代理聊天（派单提示词和交回内容都可读，含嵌套）、模型与强度、项目目录（由工作区记录推出，查不到就留空）。
-- 局限：没有实时页（数据库是 Cursor 自己的工作库，这里只读，不做轮询）。Cursor 不在本地记录 token 用量，所以没有 token 也没有金额：页面不显示任何金额和 token 数（会话列表的金额格显示“—”，总览、子代理、耗时分析等页面去掉了对应的卡片、列和数字），只保留时间和上下文大小；每个代理只有最后一步有上下文大小，其余步显示“—”。时间是估算的：消息按开始流式输出的时刻记录，工具调用有结束时刻时按它算，没有时用下一条消息的时刻代替结束时刻，所以耗时可能偏长；思考时长取自记录。只列出带逐条消息时间的聊天：约 2025-12 之前的旧版 Cursor 没有逐条时间，无法做时间线，不显示；Cursor 启动时创建的空占位聊天和子代理聊天（折进它们的主聊天）也不单独列出。数据库里除聊天表外还有登录凭据：工具只查聊天与消息两类记录，从不读其他内容，聊天记录里的加密密钥字段也直接丢弃。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
+- 实时页：支持，且同样没有 token 和金额：实时页的路线图、代理图、卡片都不显示金额和 token（含近 15 分钟用量、消耗速度、排序里的“预估金额”），只保留时间和上下文大小。每次刷新先比较数据库与 `-wal` 的大小和修改时间，没有变化就不连库；有变化时只用等值键查询读该会话的 `composerData:<id>` 以及新出现或还没完成的消息，不做范围扫描。工具调用状态不是“已完成/出错/取消”即视为执行中；没有“正在生成”标记且会话已结束时，挂起超过 10 分钟的调用会被丢弃。子代理“交回”以主会话里对应的 `task_v2` 调用完成为准，后台运行型的子代理可能被提前标为已交回。上下文大小只取 `composerData.contextTokensUsed`，Cursor 往往只在回合结束时写，运行中和子代理多为 0；压缩点用 `ctxLimitCursor`（默认 256000）。
+- 局限：Cursor 不在本地记录 token 用量，所以没有 token 也没有金额：页面不显示任何金额和 token 数（会话列表的金额格显示“—”，总览、子代理、耗时分析等页面去掉了对应的卡片、列和数字），只保留时间和上下文大小；每个代理只有最后一步有上下文大小，其余步显示“—”。时间是估算的：消息按开始流式输出的时刻记录，工具调用有结束时刻时按它算，没有时用下一条消息的时刻代替结束时刻，所以耗时可能偏长；思考时长取自记录。只列出带逐条消息时间的聊天：约 2025-12 之前的旧版 Cursor 没有逐条时间，无法做时间线，不显示；Cursor 启动时创建的空占位聊天和子代理聊天（折进它们的主聊天）也不单独列出。数据库里除聊天表外还有登录凭据：工具只查聊天与消息两类记录，从不读其他内容，聊天记录里的加密密钥字段也直接丢弃。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
 
 五种格式都是工具的内部细节（opencode 与 Cursor 的表结构尤其如此），可能随版本变化；新版本可能让解析失效，需要在这里更新。
 
@@ -204,7 +207,7 @@ cd AgentReplay
 
 | 键 | 默认值 | 含义 |
 | --- | --- | --- |
-| `ctxLimit`、`ctxLimitCodex` | 400000 | 视为上下文压缩点的大小（token），超过则告警 |
+| `ctxLimit`（Claude Code、Gemini CLI、opencode）、`ctxLimitCodex`、`ctxLimitCursor` | 400000、400000、256000 | 视为上下文压缩点的大小（token），超过则告警 |
 | `idleSec` | 300 | 这么久没有写入：代理显示为空闲 |
 | `endedSec` | 600 | 这么久没有写入：会话视为已结束，改为低频刷新 |
 | `longCmdSec` | 600 | 前台命令运行超过这个时间则触发长命令告警 |
@@ -256,13 +259,13 @@ src/                    全部源码，按职责分组：
 | 分组 | 文件 | 职责 |
 | --- | --- | --- |
 | 命令与配置 | `cli.py`、`config.py`、`sessions.py` | 命令；数据目录与缓存位置；解析会话参数、打印列表 |
-| 来源 | `sources.py`、`source_claude.py`、`source_codex.py`、`source_gemini.py`、`scan_util.py` | 来源注册表与适配契约（新增来源 = 一个适配模块 + 在 `sources.BUILTIN` 登记一行）；Claude Code、Codex 与 Gemini CLI 的扫描、列表行、会话树、解析入口、实时（Gemini 没有）、计价和数据目录 |
+| 来源 | `sources.py`、`source_claude.py`、`source_codex.py`、`source_gemini.py`、`scan_util.py` | 来源注册表与适配契约（新增来源 = 一个适配模块 + 在 `sources.BUILTIN` 登记一行）；Claude Code、Codex 与 Gemini CLI 的扫描、列表行、会话树、解析入口、实时、计价和数据目录 |
 | 解析 | `parse.py`、`parse_codex.py`、`codex_scan.py`、`codex_calls.py`、`parse_gemini.py`、`gemini_scan.py`、`gemini_calls.py`、`index.py`、`common.py`、`redact.py` | Claude Code、Codex 与 Gemini CLI 记录 -> 同一套回放模型；会话索引；分类、合入识别、汇总；密钥脱敏 |
 | opencode | `source_opencode.py`、`opencode_scan.py`、`opencode_calls.py`、`parse_opencode.py` | opencode 来源：只读 SQLite，会话用虚拟路径 `<库>#<会话 id>` 表示并由 `stat` 反映变化；列表扫描、会话树、消息与部分 -> 回放模型、按模型名计价 |
 | Cursor | `source_cursor.py`、`cursor_scan.py`、`cursor_calls.py`、`parse_cursor.py` | Cursor 来源：只读 SQLite（只查聊天与消息两类记录），会话用虚拟路径 `<库>#<聊天 id>` 表示并由 `stat` 反映变化；列表规则、聊天树、消息 -> 回放模型；没有 token 与金额 |
 | 价格 | `prices.py`、`prices.json`、`costcache.py` | 价格表、token 向量与金额显示规则（按步计价在各来源的适配模块里）；会话列表用的金额缓存 |
 | 服务 | `server.py`、`render.py`、`boot.js`、`template.html`、`loading.html` | 本地 HTTP 应用、后台解析任务、页面缓存、源码更新后自动重启；组装单文件页面；页面路由与启动 |
-| 实时 | `live.py`、`live_claude.py`、`live_codex.py`、`live.json`、`live.js`、`live_steps.py`、`live_steps.js` | 进行中会话的增量状态与告警；实时页；回看页的增量追加 |
+| 实时 | `live.py`、`live_claude.py`、`live_codex.py`、`live_gemini.py`、`live_opencode.py`、`opencode_tail.py`、`live_cursor.py`、`cursor_tail.py`、`live.json`、`live.js`、`live_steps.py`、`live_steps.js` | 进行中会话的增量状态与告警（SQLite 来源用自己的只读轮询 tail，经 `Live.follow(tail=…)` 接入）；实时页；回看页的增量追加 |
 | 总览与列表 | `list.*`、`overview.js`、`money.js`、`time_cats.js`、`views.js`、`view_agents.js`、`sub_status.js` | 会话列表；总览；金额与 token 的显示；按类别的时间；子代理页与状态列 |
 | 时间线 | `timeline.*`、`tl_*.js`、`tl_focus*.js`、`timeseg.js` | 多代理时间线；单代理视图；时间切分 |
 | 路线图 | `route_*.js`、`route.css` | 泳道图的数据模型、布局、渲染、导航（缩放、小地图）和实时合并 |
@@ -301,9 +304,9 @@ python3 scripts/check.py
 
 - 思考内容不在记录里，只有思考了多久。
 - Codex 发给子代理的简报在 rollout 里是加密的，只能显示派单参数。
-- Gemini CLI 没有实时页；时间是按时间戳估算的（并行工具的耗时互相重叠，新版 CLI 没有思考时长）；价格表里按日期预告的变化只按消息日期处理，不在表里的模型不计金额。
+- Gemini CLI 的实时页看不到“正在执行的工具”（工具调用只在完成后落盘）；时间是按时间戳估算的（并行工具的耗时互相重叠，新版 CLI 没有思考时长）；价格表里按日期预告的变化只按消息日期处理，不在表里的模型不计金额。
 - Windows 未实测。
-- Gemini CLI、opencode 与 Cursor 没有实时页；opencode 与 Cursor 还依赖其内部 SQLite 表结构，可能随版本变化。
+- opencode 与 Cursor 依赖其内部 SQLite 表结构，可能随版本变化；Cursor 实时页的“工具执行中”状态取值、后台型子代理的交回时刻没有在真实运行中的 Cursor 上核对过，按保守口径处理。
 - Cursor 不在本地记录 token，没有金额；时间是估算的；旧版（无逐条时间）的聊天不显示。
 - 暂不支持 WorkBuddy 的会话。只读取已注册的来源（Claude Code、Codex、Gemini CLI、opencode、Cursor）；接入新来源需按 `src/sources.py` 的契约写一个适配模块。
 - 金额是按官方 API 标价的估算，不是账单；不在价格表里的模型不计入金额。
