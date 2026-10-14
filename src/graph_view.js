@@ -5,10 +5,11 @@
  * everything that loops forever (glow, dashes) is CSS and is paused while the page is hidden. */
 
 const GR_MINK = 0.3, GR_MAXK = 2, GR_TWEEN = 300, GR_DRAW = 500, GR_POS_KEY = 'agent-replay.graph.pos.';
+const GR_VP_MIN = 520, GR_VP_GAP = 14;   // canvas minimum height / space left below it
 const GR = {
   host: null, key: '', d: null, skew: 0, active: false, primed: false, hidden: false, ready: false,
   nodes: new Map(), edges: new Map(), retired: new Set(), mem: {}, names: {},
-  k: 1, vx: 24, vy: 24, auto: true, vt: null,
+  k: 1, vx: 24, vy: 24, auto: true, vt: null, vpH: 0, sized: false,
   sel: null, pos: {}, raf: 0, timer: 0, ptrs: new Map(), drag: null, pinch: null, lastTap: null,
   stats: {frames: 0, last: 0, max: 0, sum: 0, samples: []}
 };
@@ -49,6 +50,7 @@ function grInit(host, key) {
     '<div class="gr-overlay gr-stat" id="gr-stat"></div><canvas class="gr-overlay gr-map" id="gr-map" width="190" height="130" aria-label="小地图：点击或拖动跳转"></canvas><div class="gr-tip" hidden></div></div>' +
     '<div class="gr-detail" id="gr-detail" aria-live="polite"></div>';
   GR.vp = host.querySelector('.gr-vp');
+  GR.vpH = 0;
   GR.world = host.querySelector('.gr-world');
   GR.svg = host.querySelector('.gr-edges');
   GR.detail = host.querySelector('#gr-detail');
@@ -65,7 +67,7 @@ function grInit(host, key) {
   /* the grid's column count follows the viewport shape, so a resize re-lays out (debounced) before fitting */
   GR.onResize = () => {
     clearTimeout(GR.rsz);
-    GR.rsz = setTimeout(() => { if (!GR.active) return; grRelayout(false); if (GR.auto) grFit(false); }, 120);
+    GR.rsz = setTimeout(() => { if (!GR.active) return; grSizeViewport(); GR.sized = false; grRelayout(false); if (GR.auto) grFit(false); }, 120);
   };
   window.addEventListener('resize', GR.onResize);
   GR.onVis = () => {
@@ -75,7 +77,11 @@ function grInit(host, key) {
   };
   document.addEventListener('visibilitychange', GR.onVis);
   clearInterval(GR.timer);
-  GR.timer = setInterval(() => { if (GR.active && !GR.hidden && GR.primed) grRelayout(false); }, 1000);
+  GR.timer = setInterval(() => {
+    if (!GR.active || GR.hidden || !GR.primed) return;
+    grRelayout(false);
+    if (GR.sized) { GR.sized = false; if (GR.auto) grFit(false); }
+  }, 1000);
   grApplyView();
 }
 
@@ -134,6 +140,7 @@ function grRelayout(fromData) {
   const cfg = d.cfg || {};
   const fadeMs = (cfg.graphFadeSec || 60) * 1000;
   const now = Date.now() + GR.skew;
+  grSizeViewport();
   const vw = GR.vp ? GR.vp.clientWidth : 0, vh = GR.vp ? GR.vp.clientHeight : 0;
   const b = grBuild(d, {now, fadeMs, maxNodes: cfg.graphMaxNodes || 40, retired: GR.retired, mem: GR.mem, vw: vw || undefined, vh: vh || undefined});
   const anim = fromData && GR.primed && !grReduced();
@@ -290,6 +297,20 @@ function grFrame() {
 }
 
 /* ---------------------------------------------------------------- view */
+/* The CSS height is only a fallback: the status bar, hint line and toolbar above the canvas are taller than the fixed offset
+ * it subtracts, so the canvas bottom used to fall below the window. Measure where the canvas starts (page scroll excluded) and
+ * end it just above the window's bottom edge, never shorter than GR_VP_MIN. GR.sized tells the caller to re-fit. */
+function grSizeViewport() {
+  const vp = GR.vp;
+  if (!vp || !vp.offsetParent) return;
+  const top = vp.getBoundingClientRect().top + (window.scrollY || 0);
+  const h = Math.max(GR_VP_MIN, Math.round(window.innerHeight - top - GR_VP_GAP));
+  if (h === GR.vpH) return;
+  GR.vpH = h;
+  vp.style.height = h + 'px';
+  GR.sized = true;
+}
+
 function grApplyView() {
   if (!GR.world) return;
   GR.world.style.transform = 'translate(' + GR.vx.toFixed(1) + 'px,' + GR.vy.toFixed(1) + 'px) scale(' + GR.k.toFixed(4) + ')';
@@ -319,6 +340,7 @@ function grGoto(k, x, y, animate) {
 }
 
 function grFit(animate) {
+  grSizeViewport();
   const b = grBounds();
   if (!b || !GR.vp) return;
   const vw = GR.vp.clientWidth, vh = GR.vp.clientHeight, pad = GR_FIT_PAD, padT = GR_FIT_PADT;   // padT keeps the status overlay off the top row
