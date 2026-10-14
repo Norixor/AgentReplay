@@ -18,14 +18,13 @@ max-file-lines: 1000
   - 调研方式：4 个只读调研子代理（sonnet medium，只写 scratchpad），WebFetch 只给摘要，所以我对结果做了独立核对：DeepSeek、MiniMax、Mistral、OpenAI 旧型号（页面内嵌 JSON）、Anthropic 用原始页面逐项对过；Kimi、Z.ai、xAI（grok-4.7）在浏览器里对过；Qwen 4 个型号与 StepFun 对过。核对中剔除了 Z.ai 页面上已不存在的 8 个型号、推断出的 Claude Mythos 型号 ID、含糊的 ERNIE 5.x 与 MiMo v2.5
   - 未逐项核对（来自子代理，原样收录）：xAI 其余型号与 >200k 档、Cohere、Amazon Nova（取自 AWS 价格 JSON）、Perplexity、Meta Muse、Seed、MiMo v2.6、腾讯 hy、ERNIE 4.5 Turbo、Qwen 其余型号；Qwen 缓存命中价按官方缓存说明的「输入价 20%」推出，各条 `note` 已注明
 - 视觉验证现状：Gemini、opencode 回看页的总览、时间线、路线在合并版里亲眼看过；代理图网格在布局子代理的 16 并发演示数据下看过（1440×900、2000×1230）；合并后未在真实并发场景复现（Animy 会话当时没有在跑的子代理）
+- 用户反馈的三项 UI 修正已合入 `phase2-live`（待随第二阶段一起快进 `main`）：耗时分析色卡 / “时间去哪了”横条 / 两层关键路径 / 配色（f2b3fe3，协作色由蓝改黄绿、读文件改蓝）；实时页点正在执行与更新的步骤（e3584d2，`live_open.js`）；步骤列表与弹窗的动作-对象-结果摘要（cd97a7e，`step_brief.js`，Animy 会话 7645 个调用里仍归“其他”的只剩 7 个）。
 - Gemini / opencode / Cursor 实时监控（第二阶段）：已完成，在 `phase2-live`（待快进合入 `main`）。共享核心 `Live.follow(tail=…)`（094a647）；Gemini（ea953d3，文件 tail）、opencode（f94c06f，只读轮询 tail）、Cursor（0e019bf + b1e83d0，只读轮询 tail，noUsage 前端）。每个来源的定向测试全过，集成后 `check.py` 41 项全过；README 与 `live.json`（`ctxLimitCursor`）已更新。
   - 已知局限（详见 README）：Gemini 工具调用完成后才落盘，看不到“执行中”的工具，一轮结束后最多 5 分钟仍显示“思考中”；Cursor 的运行时 `status` 取值、后台型子代理的交回时刻没有在真实运行的 Cursor 上核对，按保守口径处理。
 
 ## 待解决 bug
 
-- [普通] 耗时分析：横条没有清晰色卡、11 类里 read/think/other/idle 四个灰蓝难分，整体不易一眼看懂（来源：用户反馈；状态：analysis-viz 子代理处理中，分支基于 `phase2-live`）
-- [普通] 实时页点正在执行的步骤、点比回放数据新的步骤和子代理打不开（来源：用户反馈，真实会话 Animy 主线代理上复现；原因：`jumpTo` 只查页面生成时的静态数据 `D`，卡片的“正在执行/最近步骤”无点击处理；状态：live-click 子代理处理中）
-- [普通] 步骤与实时里看不清代理具体做了什么（来源：用户反馈；真实会话上：几乎所有步骤标签都是 Bash、命令列是带 `cd … &&` 的原始串、结果只有“成功”；状态：step-brief 子代理处理第一步——动作/对象/结果摘要用于步骤列表与步骤弹窗；第二步：实时卡片采用同一摘要并在 `recent` 里带结果行，待前两个合入后做）
+- [普通] 实时与路线图仍看不清代理在做什么：路线图概览节点只写“N 个事件 · 时长 · 金额”；实时卡片和代理图仍显示原始命令、没有结果行和“最近说明”；未完成调用的弹窗结果格写“无结果 / <1 秒”（来源：用户反馈，真实会话 Animy 主线代理；状态：live-cards、route-groups 两个子代理处理中，分支基于 `phase2-live` 的 cd97a7e）
 
 ## 待拍板
 
