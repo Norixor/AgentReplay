@@ -23,15 +23,14 @@ Five coding agents are supported today. Details and limits are in [Supported sou
 
 | Source | Replay | Sub-agents | Tokens and cost | Live monitoring |
 | --- | :---: | :---: | :---: | :---: |
-| **Claude Code** | ✅ | ✅ | ✅ | ✅ |
-| **Codex** | ✅ | ✅ | ✅ | ✅ |
-| **Gemini CLI** | ✅ | ✅ | ✅ | ✅ |
-| **opencode** | ✅ | ✅ | ✅ | ✅ |
-| **Cursor** | ✅ | ✅ | ❌ | ✅ |
+| **Claude Code** | ✅ Full | ✅ With briefs | ✅ With cache | ✅ Full |
+| **Codex** | ✅ Full | ✅ Briefs encrypted | ✅ With reasoning | ✅ Full |
+| **Gemini CLI** | ✅ Full | ✅ With briefs | ✅ With thinking | ✅ No running tools |
+| **opencode** | ✅ Full | ✅ With briefs | ✅ By model name | ✅ Running tools |
+| **Cursor** | ✅ Full | ✅ With briefs | ❌ Not recorded | ✅ No cost |
 
 - **Replay**: session list, overview, timeline, route map, time analysis and step-by-step replay with reasons, the same for all five.
 - **Live monitoring**: route map, agent graph and cards, plus alerts and burn rate, refreshed every 5 seconds.
-- **Exceptions**: Cursor stores no token usage locally, so it has no cost or tokens; Gemini CLI cannot show a tool that is still running.
 - Cost is an estimate from official API list prices, not a bill. macOS and Linux work, Windows is untested; Python 3.9+, no dependencies.
 
 ## Contents
