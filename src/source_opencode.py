@@ -5,8 +5,8 @@ row of their top-level session and into its tree. There is no live view: the dat
 store, and polling it is left out of this first version (live_supported = False).
 
 Pricing: opencode talks to many providers, so a step is priced by its model name from the tables the tool already has
-(the "claude", "codex" and "gemini" sections of prices.json, in that order). A model found in none is unpriced: its tokens
-count, its amount does not. The session's own cost column is not used (opencode leaves it at 0 for many setups).
+(the "claude", "codex", "gemini" and then "other" sections of prices.json, in that order; "other" holds the models of every
+other vendor). A model found in none is unpriced: its tokens count, its amount does not. The session's own cost column is not used (opencode leaves it at 0 for many setups).
 """
 import os
 import re
@@ -40,7 +40,7 @@ def lookup_names(model):
 
 def price_step(model, usage):
     """Price one assistant message. usage = {in, cw, cr, out, rsn, provider, day}; see opencode_tokens. day (UTC, YYYY-MM-DD)
-    only matters for Gemini models, whose table can carry dated price changes."""
+    only matters for models whose table can carry dated price changes (Gemini and the "other" section)."""
     tok = opencode_tokens(usage)
     if (usage.get("provider") or "").lower() in LOCAL_PROVIDERS:
         return prices.result(0.0, tok, True, local=True)
@@ -58,6 +58,9 @@ def price_step(model, usage):
             r = source_gemini.price_step(name, {"input": tok["in"] + tok["cw5"] + tok["cr"], "cached": tok["cr"],
                                                 "output": tok["out"] - tok["rsn"], "thoughts": tok["rsn"], "day": usage.get("day") or ""})
             return prices.result(r["cost"], tok, r["priced"])
+        cost = prices.other_step(name, tok, usage.get("day") or "")
+        if cost is not None:
+            return prices.result(cost, tok, True)
     return prices.result(None, tok, False)
 
 

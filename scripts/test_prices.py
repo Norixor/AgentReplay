@@ -12,12 +12,27 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import prices  # noqa: E402
 import source_claude  # noqa: E402
 import source_codex  # noqa: E402
+import source_opencode  # noqa: E402
 
 EPS = 1e-9
 
 
 def near(a, b):
     return a is not None and abs(a - b) < EPS
+
+
+def with_other(section, fn):
+    """Run fn with a synthetic "other" price section in place of the real one (the real numbers change whenever vendors do)."""
+    table = prices.load()
+    saved = table.get("other")
+    table["other"] = section
+    try:
+        return fn()
+    finally:
+        if saved is None:
+            table.pop("other", None)
+        else:
+            table["other"] = saved
 
 
 def cases():
@@ -84,6 +99,42 @@ def cases():
     t = prices.zero_tok(codex=True)
     prices.add_tok(t, {"in": 1, "cw5": 2, "cw1": 3, "cr": 4, "out": 5, "rsn": 6}, 2)
     case("token vectors add and total", t["in"] == 2 and t["rsn"] == 12 and prices.tok_total(t) == 2 * (1 + 2 + 3 + 4 + 5))
+    # "other" section (every vendor that has no section of its own), on a synthetic table: rates per million tokens
+    syn = {"models": {
+        "vend-a": {"input": 1, "cached_input": 0.1, "cache_write": 1.25, "output": 4, "aliases": ["vend-a-latest"]},
+        "vend-b": {"input": 2, "cached_input": None, "cache_write": None, "output": 8,
+                   "long_context": {"over_input_tokens": 200000, "input": 4, "cached_input": None, "output": 12},
+                   "changes": [{"from": "2027-01-01", "input": 3, "output": 9}]}}}
+    tok = {"in": 1000, "cw5": 2000, "cw1": 0, "cr": 10000, "out": 500}
+
+    def other():
+        res = {}
+        res["a"] = prices.other_step("vend-a", tok)
+        res["alias"] = prices.other_step("VEND-A-LATEST", tok)
+        res["dated"] = prices.other_step("vend-a-20260101", tok)
+        res["b"] = prices.other_step("vend-b", tok)
+        res["b_long"] = prices.other_step("vend-b", {"in": 100000, "cw5": 0, "cw1": 0, "cr": 150000, "out": 1000})
+        res["b_edge"] = prices.other_step("vend-b", {"in": 100000, "cw5": 0, "cw1": 0, "cr": 100000, "out": 0})
+        res["b_new"] = prices.other_step("vend-b", tok, "2027-01-01")
+        res["b_old"] = prices.other_step("vend-b", tok, "2026-12-31")
+        res["unknown"] = prices.other_step("nobody", tok)
+        res["oc"] = source_opencode.price_step("vend-a", {"in": 1000, "cw": 2000, "cr": 10000, "out": 400, "rsn": 100, "provider": "x"})
+        res["oc_prefix"] = source_opencode.price_step("vendor/vend-a-latest", {"in": 1000, "out": 10, "provider": "x"})
+        return res
+    r = with_other(syn, other)
+    a_cost = (1000 * 1 + 2000 * 1.25 + 10000 * 0.1 + 500 * 4) / 1e6
+    case("other: input, cache write, cache read and output at their own rates", near(r["a"], a_cost))
+    case("other: aliases and a date suffix find the same entry", near(r["alias"], a_cost) and near(r["dated"], a_cost))
+    case("other: a rate the vendor does not list (null) bills those tokens as uncached input", near(r["b"], (1000 * 2 + 2000 * 2 + 10000 * 2 + 500 * 8) / 1e6))
+    case("other: long context (prompt = input + cache read + cache write over the limit) replaces the listed rates",
+         near(r["b_long"], (100000 * 4 + 150000 * 4 + 1000 * 12) / 1e6))
+    case("other: a prompt of exactly the limit stays on the base rates", near(r["b_edge"], 200000 * 2 / 1e6))
+    case("other: a dated price change applies from its day on", near(r["b_new"], (3000 * 3 + 10000 * 3 + 500 * 9) / 1e6) and near(r["b_old"], r["b"]))
+    case("other: unknown model has no amount", r["unknown"] is None)
+    case("other: opencode prices a model that only the other section lists (reasoning billed as output)",
+         r["oc"]["priced"] and near(r["oc"]["cost"], (1000 * 1 + 2000 * 1.25 + 10000 * 0.1 + 500 * 4) / 1e6) and r["oc"]["tok"]["rsn"] == 100)
+    case("other: opencode finds it through a gateway prefix and an alias", r["oc_prefix"]["priced"] and near(r["oc_prefix"]["cost"], (1000 * 1 + 10 * 4) / 1e6))
+    case("other: the real table is untouched after the synthetic one", prices.other_step("vend-a", tok) is None)
     return out
 
 

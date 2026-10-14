@@ -27,24 +27,13 @@ def gemini_tokens(u):
             "out": max(0, int(u.get("output") or 0)) + th, "rsn": th}
 
 
-def _rates(entry, prompt, day):
-    """Rates of a model entry for a prompt of this many tokens on this UTC day (YYYY-MM-DD, "" = today's table):
-    the latest dated change that already applies replaces the base rates, then the long-prompt tier may replace them."""
-    base = entry
-    for ch in sorted(entry.get("changes") or (), key=lambda c: c["from"]):
-        if day and day >= ch["from"]:
-            base = dict(entry, **ch)
-    lc = base.get("long_context")
-    return lc if lc and prompt > lc["over_prompt_tokens"] else base
-
-
 def price_step(model, usage):
     """Price one Gemini response. usage = {input, output, cached, thoughts, tool} plus an optional "day" (the message date)."""
     tok = gemini_tokens(usage)
     entry = (prices.load().get("gemini") or {}).get("models", {}).get(prices.norm_model(model))
     if not entry:
         return prices.result(None, tok, False)
-    p = _rates(entry, tok["in"] + tok["cr"], (usage or {}).get("day") or "")
+    p = prices.rates(entry, tok["in"] + tok["cr"], (usage or {}).get("day") or "")
     cost = (tok["in"] * p["input"] + tok["cr"] * p["cached_input"] + tok["out"] * p["output"]) / 1e6
     return prices.result(cost, tok, True)
 

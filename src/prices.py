@@ -4,6 +4,9 @@ prices.json holds the official list prices (USD per million tokens) in one secti
 read date (read_date, overridden per source by read_dates.<id>) and the rules that are applied. A step is priced from its own token usage by its source's price_step
 (source_claude.py, source_codex.py); every aggregate in the tool sums those per-step results.
 
+The "other" section is not a source of its own: it holds the models of every other vendor (xAI, DeepSeek, Moonshot, ...) that a
+multi-provider tool such as opencode can use, found by model name (or one of its aliases) through other_step().
+
 A priced step is {"cost": float|None, "tok": {...}, "priced": bool, "local": bool, "fast": bool}:
   cost    USD, None when the model is not in the table (its tokens are still counted, the amount is left out of all totals)
   tok     in (uncached input), cw5 / cw1 (cache write, 5 min / 1 h), cr (cache read), out (output); Codex adds rsn
@@ -90,6 +93,51 @@ def is_local(model):
 def norm_model(model):
     """Price table key of a model name: lower case, without a trailing -YYYYMMDD date."""
     return _DATE_SUFFIX.sub("", (model or "").strip().lower())
+
+
+def rates(entry, prompt, day=""):
+    """Rates of a model entry for a prompt of this many tokens on this UTC day (YYYY-MM-DD, "" = today's table):
+    the latest dated change (changes: [{from, ...rates}]) that already applies replaces the base rates, then the
+    long-prompt tier (long_context: {over_prompt_tokens | over_input_tokens, ...rates}) replaces what it lists."""
+    base = entry
+    for ch in sorted(entry.get("changes") or (), key=lambda c: c["from"]):
+        if day and day >= ch["from"]:
+            base = dict(entry, **ch)
+    lc = base.get("long_context")
+    if lc and prompt > lc.get("over_prompt_tokens", lc.get("over_input_tokens", float("inf"))):
+        return dict(base, **lc)
+    return base
+
+
+_ALIASES = {}  # alias -> model key of the "other" section; rebuilt when the section object changes
+
+
+def other_entry(model):
+    """The "other" section entry of a model name (its key or one of its aliases), None when it is not listed."""
+    models = (load().get("other") or {}).get("models") or {}
+    if _ALIASES.get("") is not models:
+        _ALIASES.clear()
+        _ALIASES[""] = models
+        for key, e in models.items():
+            for a in e.get("aliases") or ():
+                _ALIASES.setdefault(norm_model(a), key)
+    key = norm_model(model)
+    return models.get(key) or models.get(_ALIASES.get(key))
+
+
+def other_step(model, tok, day=""):
+    """Price a step of a model of the "other" section, None when the model is not listed there.
+    tok = {in (uncached), cw5 / cw1 (cache write), cr (cache read), out (reasoning included)}; day = UTC date of the message.
+    A rate the vendor does not list (cached_input, cache_write: null) bills those tokens as uncached input."""
+    e = other_entry(model)
+    if e is None:
+        return None
+    cw = tok.get("cw5", 0) + tok.get("cw1", 0)
+    p = rates(e, tok.get("in", 0) + cw + tok.get("cr", 0), day)
+    inp = p["input"]
+    cached = inp if p.get("cached_input") is None else p["cached_input"]
+    write = inp if p.get("cache_write") is None else p["cache_write"]
+    return (tok.get("in", 0) * inp + cw * write + tok.get("cr", 0) * cached + tok.get("out", 0) * p["output"]) / 1e6
 
 
 def result(cost, tok, priced, local=False, fast=False):
