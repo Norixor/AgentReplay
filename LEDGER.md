@@ -17,10 +17,11 @@ max-file-lines: 1000
 - 价格表扩充（`other` 段 94 个其他厂商模型、Claude / OpenAI 旧型号补缺、引擎 `prices.rates` / `other_step`、Codex 空缓存价与长上下文档修正、数据完整性测试）：已完成，已快进合入 `main`（1fd4f4d，用户授权「你看着弄」），`check.py` 全过；分支与 worktree 已清理。
   - 调研方式：4 个只读调研子代理（sonnet medium，只写 scratchpad），WebFetch 只给摘要，所以我对结果做了独立核对：DeepSeek、MiniMax、Mistral、OpenAI 旧型号（页面内嵌 JSON）、Anthropic 用原始页面逐项对过；Kimi、Z.ai、xAI（grok-4.7）在浏览器里对过；Qwen 4 个型号与 StepFun 对过。核对中剔除了 Z.ai 页面上已不存在的 8 个型号、推断出的 Claude Mythos 型号 ID、含糊的 ERNIE 5.x 与 MiMo v2.5
   - 未逐项核对（来自子代理，原样收录）：xAI 其余型号与 >200k 档、Cohere、Amazon Nova（取自 AWS 价格 JSON）、Perplexity、Meta Muse、Seed、MiMo v2.6、腾讯 hy、ERNIE 4.5 Turbo、Qwen 其余型号；Qwen 缓存命中价按官方缓存说明的「输入价 20%」推出，各条 `note` 已注明
-- 视觉验证现状：Gemini、opencode 回看页的总览、时间线、路线在合并版里亲眼看过；代理图网格在布局子代理的 16 并发演示数据下看过（1440×900、2000×1230）；合并后未在真实并发场景复现（Animy 会话当时没有在跑的子代理）
-- 用户反馈的 UI 修正（耗时分析、实时点开、看清代理在做什么）：已完成，随第二阶段一起快进合入 `main`。耗时分析色卡 / “时间去哪了”横条 / 两层关键路径 / 配色（f2b3fe3）；实时页点正在执行与更新的步骤（e3584d2，`live_open.js`）；步骤列表与弹窗的“类别·动作·结果”摘要（cd97a7e，`step_brief.js`，Animy 会话 7645 个调用里仍归“其他”的只剩 7 个）；实时卡片与代理图用同一摘要、快照带 `calls`/`said`（1d7cdb6，`live_brief.py/js`，Animy 快照约 +27%）；路线图折叠节点写主题与构成（e6eb007，`route_brief.js`）。真实会话（Animy 主线代理）上亲眼看过：耗时分析、步骤列表、实时卡片、路线图、点正在执行的步骤；代理图与手机宽度只由子代理用 DOM 检查过，没有人看过截图。
+- 视觉验证现状：Gemini、opencode 回看页的总览、时间线、路线在合并版里亲眼看过；代理图网格在布局子代理的 16 并发演示数据下看过（1440×900、2000×1230）；合并后未在真实并发场景复现（真实长会话当时没有在跑的子代理）
+- 用户反馈的 UI 修正（耗时分析、实时点开、看清代理在做什么）：已完成，随第二阶段一起快进合入 `main`。耗时分析色卡 / “时间去哪了”横条 / 两层关键路径 / 配色（f2b3fe3）；实时页点正在执行与更新的步骤（e3584d2，`live_open.js`）；步骤列表与弹窗的“类别·动作·结果”摘要（cd97a7e，`step_brief.js`，真实长会话 7645 个调用里仍归“其他”的只剩 7 个）；实时卡片与代理图用同一摘要、快照带 `calls`/`said`（1d7cdb6，`live_brief.py/js`，该会话快照约 +27%）；路线图折叠节点写主题与构成（e6eb007，`route_brief.js`）。真实会话（真实的长主线代理会话）上亲眼看过：耗时分析、步骤列表、实时卡片、路线图、点正在执行的步骤；代理图与手机宽度只由子代理用 DOM 检查过，没有人看过截图。
 - Gemini / opencode / Cursor 实时监控（第二阶段）：已完成，在 `phase2-live`（待快进合入 `main`）。共享核心 `Live.follow(tail=…)`（094a647）；Gemini（ea953d3，文件 tail）、opencode（f94c06f，只读轮询 tail）、Cursor（0e019bf + b1e83d0，只读轮询 tail，noUsage 前端）。每个来源的定向测试全过，集成后 `check.py` 41 项全过；README 与 `live.json`（`ctxLimitCursor`）已更新。
   - 已知局限（详见 README）：Gemini 工具调用完成后才落盘，看不到“执行中”的工具，一轮结束后最多 5 分钟仍显示“思考中”；Cursor 的运行时 `status` 取值、后台型子代理的交回时刻没有在真实运行的 Cursor 上核对，按保守口径处理。
+- 发布准备：README 最前面新增“支持情况”表（五个来源 × 回放 / 子代理 / token 与金额 / 实时 / 注意事项，中英文），测试与账本里的私有项目名已改为通用名；`check.py` 45 项全过，随后推送 `main` 到 GitHub（用户已授权）。
 
 ## 待解决 bug
 
