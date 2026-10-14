@@ -150,6 +150,17 @@ def check_gemini():
         report(True, "Gemini CLI source tests passed (%d cases)" % len(cases))
 
 
+def check_live_brief():
+    """Call briefs carried by the live snapshot (scripts/test_live_brief.py)."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import test_live_brief
+    cases, bad = test_live_brief.run()
+    for name in bad:
+        report(False, "live brief: " + name)
+    if not bad:
+        report(True, "live snapshot call-brief tests passed (%d cases)" % len(cases))
+
+
 def check_sources():
     """Source registry extensibility test with a fake source (scripts/test_sources.py)."""
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -481,6 +492,7 @@ def main():
     check_js()
     check_prices()
     check_gemini()
+    check_live_brief()
     check_sources()
     check_opencode()
     check_cursor()
