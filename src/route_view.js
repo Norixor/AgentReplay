@@ -170,6 +170,14 @@ function renderRoute(container, opts) {
     fit, anchorX: () => (V.auto && live ? nowX() + V.vx : null)
   };
   const elOf = id => V.elById.get(id) || (V.model && V.model.nodeById.get(id));
+  const nameOf = id => { const L = V.model && V.model.laneById.get(id); return L ? L.agent.desc : ''; };
+  /* What a group or a folded strip was doing (route_brief.js): every call of its lane inside its time span. null otherwise. */
+  function briefOf(nd) {
+    if (typeof RB === 'undefined' || (nd.kind !== 'group' && nd.kind !== 'strip')) return null;
+    const L = V.model && V.model.laneById.get(nd.agent);
+    if (!L) return null;
+    return RB.of(nd.agent, nd.kind === 'strip' ? nd.items : RB.span(L.items, nd.t0, nd.t1), {trigs: L.agent.trigs, lookupName: nameOf});
+  }
   function toggleStrip(id) {
     if (V.expanded.has(id)) V.expanded.delete(id); else V.expanded.add(id);
     saveExpanded();
@@ -211,21 +219,36 @@ function renderRoute(container, opts) {
 
   /* ---------------------------------------------------------------- DOM: nodes */
   function lodOf(nd) { return nd.dw >= 112 ? 2 : nd.dw >= 48 ? 1 : 0; }
+  const rvCost = c => c > 0 && !(typeof noUsage === 'function' && noUsage());
+  /* Composition of a stretch: coloured count chips (most frequent kinds first; failures and blocks in red) and a stacked bar. */
+  const mixChips = (b, max) => b.mix.slice(0, max).map(m => '<span class="rt-ch"><i class="c-' + m.key + '"></i>' + esc(m.label) + m.n + '</span>').join('') +
+    (b.err + b.hook ? '<span class="rt-ch bad" title="失败 ' + b.err + '，拦截 ' + b.hook + '">✗' + (b.err + b.hook) + '</span>' : '');
+  const mixBar = b => (b.calls ? '<i class="rt-mix" aria-hidden="true">' + b.mix.map(m => '<b class="c-' + m.key + '" style="flex-grow:' + m.n + '"></b>').join('') + '</i>' : '');
+  /* A group box. Line 1: the theme, then the amount (and the number of calls when there is room, or when the source has no
+   * amounts). Line 2: composition chips and the duration. A stacked bar runs along the bottom edge. */
+  function groupInner(nd, b, lod) {
+    const dur = nd.t1 - nd.t0, cost = rvCost(nd.cost) && lod === 2, cnt = lod === 2 && (nd.dw >= 220 || !cost);
+    return '<div class="rt-h"><span class="rt-t">' + esc(b.theme || nd.title) + '</span>' + (cnt ? '<span class="rt-n">' + b.calls + ' 项</span>' : '') +
+      (cost ? '<span class="rt-n">' + esc(fmtMoney(nd.cost)) + '</span>' : '') + '</div>' +
+      '<div class="rt-m">' + mixChips(b, lod < 2 ? 1 : nd.dw >= 200 ? 3 : b.err + b.hook && b.mix.slice(0, 2).some(m => m.n >= 100) ? 1 : 2) + (dur > 0 ? '<span>' + fmtDur(dur).replace(/ /g, '') + '</span>' : '') + '</div>' + mixBar(b);
+  }
   /* Two lines in every box: the title, then the small duration and amount. */
-  function nodeInner(nd, lod, isLive) {
+  function nodeInner(nd, lod, isLive, b) {
     if (nd.mark) return '<span class="rt-ic">' + esc(nd.icon || '') + '</span>';
-    if (lod === 0) return '<span class="rt-ic">' + esc(nd.icon || '') + '</span>';
+    if (lod === 0) return '<span class="rt-ic">' + esc(nd.icon || '') + '</span>' + (b ? mixBar(b) : '');
+    if (b) return groupInner(nd, b, lod);
     const st = RV_ST[nd.st === 'pend' && !isLive ? 'ok' : nd.st] || RV_ST.ok;
     const stTxt = lod < 2 || RV_NO_ST[nd.kind] ? '' : (nd.st === 'pend' && !isLive ? '' : st[0]);
     const dur = nd.t1 - nd.t0;
     const meta = (isLive ? '<b class="rt-tick" data-t0="' + nd.t0 + '">' + fmtDur(Math.max(0, now() - nd.t0)) + '</b>' : (dur > 0 ? '<span>' + fmtDur(dur) + '</span>' : '')) +
-      (nd.cost > 0 && nd.dw >= 110 ? '<span class="rt-cost">' + esc(fmtMoney(nd.cost)) + '</span>' : '') + (nd.retry && lod === 2 ? '<span class="rt-rtn">重试 ' + nd.retry + ' 次</span>' : '');
+      (rvCost(nd.cost) && nd.dw >= 110 ? '<span class="rt-cost">' + esc(fmtMoney(nd.cost)) + '</span>' : '') + (nd.retry && lod === 2 ? '<span class="rt-rtn">重试 ' + nd.retry + ' 次</span>' : '');
     return '<div class="rt-h"><span class="rt-t">' + esc(nd.title) + '</span>' + (stTxt ? '<span class="rt-s s-' + st[1] + '">' + stTxt + '</span>' : '') + '</div><div class="rt-m">' + meta + '</div>';
   }
   function nodeEl(nd, isLive) {
     let el = V.nodes.get(nd.id);
     const lod = lodOf(nd), du = !nd.mark && nd.kind !== 'group' && nd.dw > nd.w + 8 ? Math.round(nd.w) : 0;
-    const sig = nd.title + '|' + nd.st + '|' + (nd.t1 - nd.t0) + '|' + nd.cost + '|' + nd.retry + '|' + isLive + '|' + lod + '|' + du + '|' + (nd.dw >= 110) + '|' + nd.bad;
+    const b = nd.kind === 'group' ? briefOf(nd) : null;
+    const sig = (b ? b.theme + '|' + b.mixText + '|' + b.calls + '|' : '') + nd.title + '|' + nd.st + '|' + (nd.t1 - nd.t0) + '|' + nd.cost + '|' + nd.retry + '|' + isLive + '|' + lod + '|' + du + '|' + (nd.dw >= 110) + '|' + nd.bad;
     if (!el) {
       el = document.createElement('div');
       el.dataset.id = nd.id;
@@ -238,8 +261,8 @@ function renderRoute(container, opts) {
       el._sig = sig;
       el.className = 'rt-node k-' + nd.kind + ' c-' + nd.cat + ' s-' + nd.st + ' lod' + lod + (nd.mark ? ' rt-mark' : '') + (nd.bad ? ' has-bad' : '') + (isLive ? ' live' : '') +
         (el.classList.contains('rt-new') ? ' rt-new' : '') + (nd.retry ? ' retried' : '');
-      el.innerHTML = nodeInner(nd, lod, isLive) + (du ? '<i class="rt-du" style="width:' + du + 'px"></i>' : '');
-      el.setAttribute('aria-label', nd.title);
+      el.innerHTML = nodeInner(nd, lod, isLive, b) + (du ? '<i class="rt-du" style="width:' + du + 'px"></i>' : '');
+      el.setAttribute('aria-label', b ? (b.themeFull || nd.title) + '；' + b.calls + ' 项：' + b.mixText + '；' + RM.fmtDur(nd.t1 - nd.t0) : nd.title);
     }
     const pos = nd.lx + ',' + nd.y + ',' + nd.dw;
     if (el._pos !== pos) { el._pos = pos; el.style.left = nd.lx + 'px'; el.style.top = nd.y + 'px'; el.style.width = nd.dw + 'px'; el.style.height = nd.h + 'px'; }
@@ -247,17 +270,23 @@ function renderRoute(container, opts) {
   /* A folded run of plain calls: a dotted line between its neighbours, with a label when it is long enough. */
   function lineEl(nd) {
     let el = V.nodes.get(nd.id);
-    const lab = nd.dw >= RV_LINE_LABEL_W ? nd.n + ' 步 · ' + RM.fmtDur(nd.t1 - nd.t0) : '';
+    const b = briefOf(nd);
+    const lab = nd.dw < RV_LINE_LABEL_W ? '' : b && b.mix.length && nd.dw >= RV_LINE_LABEL_W * 1.6 ?
+      b.mix.slice(0, 2).map(m => m.label + ' ' + m.n).join(' · ') + (b.err + b.hook ? ' · ✗' + (b.err + b.hook) : '') + ' · ' + RM.fmtDur(nd.t1 - nd.t0) :
+      nd.n + ' 步 · ' + RM.fmtDur(nd.t1 - nd.t0);
     if (!el) {
       el = document.createElement('div');
       el.dataset.id = nd.id;
       el.className = 'rt-line';
       el.setAttribute('role', 'button');
-      el.setAttribute('aria-label', nd.title + '，点击展开');
       world.appendChild(el);
       V.nodes.set(nd.id, el);
     }
-    if (el._lab !== lab) { el._lab = lab; el.innerHTML = lab ? '<span>' + esc(lab) + '</span>' : ''; }
+    if (el._lab !== lab) {
+      el._lab = lab;
+      el.innerHTML = lab ? '<span>' + esc(lab) + '</span>' : '';
+      el.setAttribute('aria-label', (b && b.theme ? b.theme + '；' + b.mixText + '；' : '') + nd.title + '，点击展开');
+    }
     const pos = nd.lx + ',' + nd.y + ',' + nd.dw;
     if (el._pos !== pos) { el._pos = pos; el.style.left = nd.lx + 'px'; el.style.top = nd.y + 'px'; el.style.width = nd.dw + 'px'; el.style.height = nd.h + 'px'; }
   }
@@ -450,11 +479,14 @@ function renderRoute(container, opts) {
 
   /* ---------------------------------------------------------------- tooltip */
   function tipHTML(nd) {
-    const L = nd.items.slice(0, 8);
-    const head = '<b>' + esc(nd.title) + '</b>' + (nd.kind === 'strip' ? ' <span class="dim">点击展开</span>' : nd.kind === 'group' ? ' <span class="dim">点击看明细，放大后自动拆开</span>' : '');
-    return head + '<div class="dim">' + esc(fmtTS(nd.t0)) + (nd.t1 > nd.t0 ? ' → ' + esc(fmtClock(nd.t1)) : '') + ' · ' + nd.n + ' 项' + (nd.cost > 0 ? ' · ' + esc(fmtMoney(nd.cost)) : '') + '</div><ul>' +
+    const L = nd.items.slice(0, 8), b = briefOf(nd);
+    const about = b ? (b.mix.length ? '<div class="rt-tmix">' + mixChips(b, 9) + (nd.kind === 'group' && b.calls > nd.n ? '<span class="dim">下面只列关键节点</span>' : '') + '</div>' : '') +
+      (b.ctxText && b.src !== 'user' ? '<div class="dim">本轮指令：' + esc(clip(b.ctxText, 120)) + '</div>' : '') +
+      (b.said ? '<div class="dim">说明：' + esc(clip(b.said, 120)) + '</div>' : '') : '';
+    const head = '<b>' + esc(b && b.themeFull ? clip(b.themeFull, 160) : nd.title) + '</b>' + (nd.kind === 'strip' ? ' <span class="dim">点击展开</span>' : nd.kind === 'group' ? ' <span class="dim">点击看明细，放大后自动拆开</span>' : '');
+    return head + '<div class="dim">' + esc(fmtTS(nd.t0)) + (nd.t1 > nd.t0 ? ' → ' + esc(fmtClock(nd.t1)) : '') + ' · ' + (b ? b.calls : nd.n) + ' 项' + (rvCost(nd.cost) ? ' · ' + esc(fmtMoney(nd.cost)) : '') + '</div>' + about + '<ul>' +
       L.map(it => '<li><time>' + esc(fmtClock(it.ts)) + '</time><span class="rt-tn">' + esc(clip(it.name, 18)) + '</span><span class="rt-tx">' + esc(clip(it.why || it.sum, 70)) + '</span>' +
-        (it.t1 > it.ts ? '<i>' + esc(fmtDur(it.t1 - it.ts)) + '</i>' : '') + (it.cost > 0 ? '<i>' + esc(fmtMoney(it.cost)) + '</i>' : '') +
+        (it.t1 > it.ts ? '<i>' + esc(fmtDur(it.t1 - it.ts)) + '</i>' : '') + (rvCost(it.cost) ? '<i>' + esc(fmtMoney(it.cost)) + '</i>' : '') +
         (it.st === 'err' || it.st === 'hook' ? '<em>' + (it.st === 'hook' ? '拦截' : '失败') + '</em>' : '') + '</li>').join('') + '</ul>' +
       (nd.n > 8 ? '<div class="dim">…还有 ' + (nd.n - 8) + ' 项</div>' : '');
   }

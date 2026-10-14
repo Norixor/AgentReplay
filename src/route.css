@@ -151,3 +151,16 @@
 
 .rt-sortw select{max-width:9em;font-size:12px}
 .rt-by{margin-left:6px;font-size:10px}
+
+/* What a group / folded stretch was doing (route_brief.js): count chips by kind and a stacked bar along the box's bottom edge */
+.rt-n{flex:none;font-size:10.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.k-group .rt-m{gap:4px;font-size:10.5px}
+.rt-ch{flex:none;display:inline-flex;align-items:center;gap:2px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.rt-ch i{width:6px;height:6px;border-radius:2px;background:var(--c-other)}
+.rt-ch.bad{color:var(--bad)}
+.rt-mix{position:absolute;left:0;right:0;bottom:0;height:3px;display:flex;pointer-events:none;opacity:.9}
+.rt-mix b{min-width:1px;background:var(--c-other)}
+.rt-ch i.c-read,.rt-mix b.c-read{background:var(--c-read)}.rt-ch i.c-write,.rt-mix b.c-write{background:var(--c-write)}
+.rt-ch i.c-test,.rt-mix b.c-test{background:var(--c-test)}.rt-ch i.c-git,.rt-mix b.c-git{background:var(--c-git)}
+.rt-ch i.c-agent,.rt-mix b.c-agent{background:var(--c-agent)}.rt-ch i.c-wait,.rt-mix b.c-wait{background:var(--c-wait)}
+.rt-tmix{display:flex;flex-wrap:wrap;gap:4px 8px;margin:3px 0 1px;font-size:11.5px}

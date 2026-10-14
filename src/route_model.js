@@ -33,7 +33,7 @@ RM.ensureAgent = function (st, meta) {
   let a = st.agents.get(meta.id);
   if (!a) {
     a = {id: meta.id, desc: '', model: '', effort: '', parent: '', depth: 0, start: 0, end: 0, doneTs: 0, running: false,
-         steps: [], byN: new Map(), events: [], evKeys: new Set(), tsSet: new Set(), nturns: 0, synth: 0};
+         steps: [], byN: new Map(), events: [], evKeys: new Set(), tsSet: new Set(), nturns: 0, synth: 0, trigs: [], trigKeys: new Set()};
     st.agents.set(meta.id, a);
     st.order.push(meta.id);
     st.rev++;
@@ -51,6 +51,16 @@ RM.addEvent = function (st, a, ev, ti) {
   a.events.push({k: ev.k, kind, ts: ev.ts, text: ev.text || '', from: ev.from || '', ti: ti == null ? null : ti});
   st.rev++;
   return true;
+};
+/* Turn triggers of every kind (user message, task notification, cross-session message, hand-back ...), kept sorted by time:
+ * route_brief.js names a folded stretch after them. */
+RM.addTrig = function (a, t) {
+  if (!t || !t.ts || !t.k) return;
+  const key = t.k + '@' + t.ts;
+  if (a.trigKeys.has(key)) return;
+  a.trigKeys.add(key);
+  const x = {k: t.k, ts: t.ts, text: t.text || '', from: t.from || ''};
+  if (a.trigs.length && a.trigs[a.trigs.length - 1].ts > x.ts) { a.trigs.push(x); a.trigs.sort((p, q) => p.ts - q.ts); } else a.trigs.push(x);
 };
 /* Add steps not seen before (by step number); a step number seen again replaces the old object (refreshed last step). */
 RM.addSteps = function (st, id, steps) {
@@ -75,6 +85,7 @@ RM.ingestAgent = function (st, ag) {
   const steps = [];
   (ag.turns || []).forEach((t, ti) => {
     t.steps.forEach(s => steps.push(s));
+    RM.addTrig(a, t.trig);
     // only the trigger opens turn `ti`; later events inside the turn carry no turn index
     [t.trig].concat(t.evs || []).forEach((e, ei) => { if (e) RM.addEvent(st, a, e, ei === 0 ? ti : null); });
   });
@@ -91,11 +102,12 @@ RM.fromPageData = function (D) {
 RM.applyStepsAnswer = function (st, id, j) {
   const a = st.agents.get(id);
   if (!a) return 0;
-  if (j.reset) { a.steps = []; a.byN = new Map(); a.tsSet = new Set(); a.events = []; a.evKeys = new Set(); a.nturns = 0; }
+  if (j.reset) { a.steps = []; a.byN = new Map(); a.tsSet = new Set(); a.events = []; a.evKeys = new Set(); a.nturns = 0; a.trigs = []; a.trigKeys = new Set(); }
   (j.agents || []).forEach(m => RM.ensureAgent(st, m));
   let n = RM.addSteps(st, id, j.steps);
   RM.addSteps(st, id, j.updated);
   (j.turns || []).forEach(t => {
+    RM.addTrig(a, t.trig);
     [t.trig].concat(t.evs || []).forEach((e, ei) => { if (e) RM.addEvent(st, a, e, ei === 0 ? t.ti : null); });
     a.nturns = Math.max(a.nturns, (t.ti || 0) + 1);
   });
@@ -172,7 +184,8 @@ RM.itemOfCall = function (s, c, ci) {
   const n = (s.calls || []).length || 1;
   return {key: 'c' + s.n + '.' + ci, kind, cat: c.cat || 'other', ts: c.ts, t1: c.ts + (c.bg ? 0 : (c.dur || 0)), st: c.st || 'ok', name: c.name || '',
           sum: c.sum || '', desc: c.desc || '', why: c.desc || rmFirst(s.said), hook: c.hook || '', child: c.agent || '', disp: c.disp || null,
-          merge: c.merge || '', bgDone: c.bg && c.bgDone ? c.bgDone : 0, step: s.n < 0 ? null : s.n, cost: s.cost == null ? null : s.cost / n, file: RM_PATH_TOOLS[c.name] ? RM.fileOf(c) : '', ord: 1 + ci};
+          merge: c.merge || '', bgDone: c.bg && c.bgDone ? c.bgDone : 0, step: s.n < 0 ? null : s.n, cost: s.cost == null ? null : s.cost / n, file: RM_PATH_TOOLS[c.name] ? RM.fileOf(c) : '', ord: 1 + ci,
+          call: c, src: s};   // the page's own call / step objects, for stepBrief (route_brief.js)
 };
 RM.itemOfEvent = function (e) {
   return {key: 'e' + e.k + '@' + e.ts + '@' + e.from, kind: e.kind, cat: 'event', ts: e.ts, t1: e.ts, st: 'ok', name: e.k, sum: e.text, desc: '', why: '',
@@ -256,6 +269,9 @@ RM.makeNode = function (a, items, lookupName) {
       else node.title = (RM.CAT_TITLE[f.cat] || '其他') + (n > 1 ? ' ×' + n : '');
       node.lines = RM.lines2(brief);
       node.icon = Array.from(node.title)[0] || '';   // narrow boxes show only this glyph
+      // a single call says what it did ("跑测试 npm test", "改 src/a.js") instead of only its category
+      const act = n === 1 && typeof RB !== 'undefined' ? RB.actionOf(f) : '';
+      if (act) node.title = act;
     }
   }
   return node;

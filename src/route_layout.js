@@ -11,7 +11,7 @@
  */
 
 const RL = {GAP_PX: 72, RESERVE_W: 84, ROW_H: 44, NODE_H: 40, PAD_T: 14, PAD_B: 6, COLLAPSED_H: 26, MAX_ROWS: 2,
-            REQ_BOX: 40, MARK_W: 16, MARK_BELOW: 48, GROUP_W: 120, TOL: 8, AXIS_H: 30, PAD_L: 24,
+            REQ_BOX: 40, MARK_W: 16, MARK_BELOW: 48, GROUP_W: 160, TOL: 8, AXIS_H: 30, PAD_L: 24,
             MAX_PPM: 600, TICK_STEPS: [10e3, 30e3, 60e3, 300e3, 900e3, 3600e3, 10800e3, 21600e3, 43200e3, 86400e3], TICK_MIN_PX: 78, SEP: 3};
 
 const rlGapMs = () => (typeof GAP_MS !== 'undefined' ? GAP_MS : 15 * 60 * 1000);   // shared with the timeline tab when it is loaded
