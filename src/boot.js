@@ -23,7 +23,7 @@ function route() {
   hideTip();
   VIEW_CLEANUP.splice(0).forEach(f => { try { f(); } catch (e) { /* ignore cleanup errors */ } });
   syncTopH();
-  const raw = location.hash.replace(/^#/, '') || (D.meta.active ? 'live' : 'overview');
+  const raw = location.hash.replace(/^#/, '') || (liveTab() ? 'live' : 'overview');
   const qi = raw.indexOf('?');
   const path = qi < 0 ? raw : raw.slice(0, qi), q = new URLSearchParams(qi < 0 ? '' : raw.slice(qi + 1));
   const parts = path.split('/');
@@ -39,7 +39,7 @@ function route() {
   });
   root.className = 'v-' + view;
   try {
-    if (view === 'live' && D.meta.active) renderLive(root);
+    if (view === 'live' && liveTab()) renderLive(root);
     else if (view === 'timeline') {
       if (parts[1] === 'agent' && parts[2]) renderTimelineFocus(root, decodeURIComponent(parts[2]));
       else renderTimeline(root);
@@ -62,7 +62,7 @@ function route() {
 
 (function boot() {
   const nav = document.getElementById('nav');
-  if (D.meta.active) nav.insertAdjacentHTML('afterbegin', '<a href="#live" data-v="live">实时<i class="livedot"></i></a>');
+  if (liveTab()) nav.insertAdjacentHTML('afterbegin', '<a href="#live" data-v="live">实时<i class="livedot"></i></a>');
   const tl = nav.querySelector('[data-v="timeline"]');
   if (tl) tl.insertAdjacentHTML('afterend', '<a href="#analysis" data-v="analysis">耗时分析</a><a href="#route" data-v="route">路线</a>');
   nav.addEventListener('keydown', e => {  // arrow keys move between tabs
@@ -76,7 +76,7 @@ function route() {
     location.hash = tabs[i].getAttribute('href');
   });
   const brand = document.getElementById('brand');
-  brand.addEventListener('click', () => { location.hash = D.meta.active ? '#live' : '#overview'; });
+  brand.addEventListener('click', () => { location.hash = liveTab() ? '#live' : '#overview'; });
   brand.innerHTML = toolChip() + ' ' + esc(D.meta.name) + ' · 会话回看';
   brand.title = D.meta.name;
   document.title = D.meta.name + ' · 会话回看';

@@ -11,7 +11,6 @@ incremental reader and parses whole rollouts). Hence a minimum gap between two p
 5 s Claude, 30 s Codex) and release of idle sessions after `releaseSec`.
 Strings are redacted per response (the page redacts its embedded data the same way, with redact.walk).
 """
-import os
 import threading
 import time
 
@@ -71,13 +70,14 @@ class StepFeed:
 
     def _signature(self, row):
         out, newest = [], 0
+        src = sources.get(row["tool"])
         for p in sorted(self.files_fn(row)):
             try:
-                st = os.stat(p)
+                size, mtime = src.stat(p)
             except OSError:
                 continue
-            out.append((p, st.st_size))
-            newest = max(newest, st.st_mtime)
+            out.append((p, size))
+            newest = max(newest, mtime)
         return tuple(out), newest
 
     def _maybe_parse(self, e, row, sig, now):

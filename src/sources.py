@@ -9,6 +9,13 @@ Registry functions: all() (display order), ids(), get(id), register(src), unregi
 
 Contract of a source adapter. Entries marked * must be provided; the others have defaults in Source.
 
+Paths: the paths a source returns from files() and tree() are keys, not necessarily files on disk. A source whose
+sessions share one store (e.g. one SQLite database) may return virtual paths such as "<db path>#<session id>"; only that
+source's own stat / scan / parse / live (and session_files / tree) ever read them, every other module just passes them
+along (index keys, cache signatures, step feed change detection all go through Source.stat). The CLI accepts a path
+argument only for real files (sessions.resolve checks os.path.isfile and sniffs the file); sessions with virtual paths
+are opened by session id prefix.
+
 Attributes
   id *              stable key, [a-z0-9_]+. Used as the record / row "tool" field, the URL segment (/s/<id>/<session>,
                     /r/..., /api/open/..., /api/job/..., /api/live/..., /api/steps/...), the row key "<id>:<session id>",
@@ -25,7 +32,12 @@ Attributes
   ctx_limit_key     live.json key of the context size above which the live view warns (default "ctxLimit"), and
   ctx_limit_default its default; live.py merges them into its defaults, so live.json may override the value.
   reparse_gap       minimum seconds between two background re-parses of one in-progress session (step feed), default 5.
-  page              replay-page hints, embedded with label and color as meta.source (render.py; read by replay.js):
+  live_supported    default True. False: live() is never called and need not exist; /api/live/<id>/<session> answers
+                    HTTP 409 {"ok": false, "code": "live_unsupported", "tool": id, "error": ...}; list rows and
+                    /api/live-list keep showing active sessions with live = null; the replay page has no live tab
+                    (meta.source.live = false) and makes no live requests. The step feed (/api/steps) does not use
+                    live() and keeps working.
+  page              replay-page hints, embedded with label, color and live as meta.source (render.py; replay.js):
                       fams   bool: colour models by the Claude family names (opus, sonnet, ...) instead of meta.models
                       notes  source-specific explanations, each optional (a missing note shows nothing):
                              why (where call reasons come from), mainSteps (what one main-agent step is), hooks (how hook
@@ -37,7 +49,10 @@ Methods
   root              property: the configured data root (config.source_dir(id)).
   files() *         -> iterable of file paths to index (sub-agent files too when the source indexes them as records of
                     their own, as Codex does).
-  sniff(head)       -> bool: the first 300 bytes of a file belong to this source (path arguments of the CLI).
+  stat(path)        -> (size, mtime) of a path from files() / tree(); raises OSError when it is gone. size is an int,
+                    mtime a float in seconds (compared for equality with index.json and hashed into page cache keys,
+                    so it must be stable while the session is unchanged). Default os.stat (st_size, st_mtime).
+  sniff(head)       -> bool: the first 300 bytes of a real file belong to this source (path arguments of the CLI).
   scan(path) *      -> index record: a JSON-serialisable dict cached in index.json (bump index.INDEX_VERSION when what a
                     source stores changes). Required keys: tool (= id), path, id, parent (parent record id or None;
                     records whose parent is another record of the same source are not offered on their own by the CLI),
@@ -61,7 +76,7 @@ Methods
                     parse_codex.py and common.totals; meta.tool = id, meta.pricing = prices.meta(id)).
                     progress(done, total, label) may be None. cache is a dict the caller keeps between calls for one
                     session (incremental re-reads of a growing session); a source may ignore it.
-  live(lv) *        -> live feed for live.Live lv: an object with build(now_ms) (first read: create AgentStates in
+  live(lv)          (* when live_supported) -> live feed for live.Live lv: an object with build(now_ms) (first read: create AgentStates in
                     lv.agents, "main" first, and follow files with lv.follow(path, state, feed, now)) and
                     discover(now_ms) (start following files that appeared since). See live_claude.py, live_codex.py.
   price_step(model, usage) *
@@ -71,6 +86,7 @@ Methods
                     what the list page and the replay page get about the source (built from the attributes).
 """
 import importlib
+import os
 import re
 
 BUILTIN = ("source_claude", "source_codex")  # adapter modules, in display order; each defines SOURCE
@@ -91,6 +107,7 @@ class Source:
     ctx_limit_key = "ctxLimit"
     ctx_limit_default = 400000
     reparse_gap = 5.0
+    live_supported = True
     page = {}
 
     @property
@@ -104,6 +121,10 @@ class Source:
 
     def files(self):
         raise NotImplementedError
+
+    def stat(self, path):
+        st = os.stat(path)
+        return st.st_size, st.st_mtime
 
     def sniff(self, head):
         return False
@@ -145,7 +166,7 @@ class Source:
 
     def page_meta(self):
         """meta.source of the replay page: label, chip colour and the page hints."""
-        return dict(self.page, label=self.label, color=self.color)
+        return dict(self.page, label=self.label, color=self.color, live=bool(self.live_supported))
 
 
 def register(src):

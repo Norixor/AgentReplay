@@ -9,6 +9,8 @@ const SUBS = D.agents.slice(1);
 const SRC = D.meta.source || {};
 const TOOL_NAME = SRC.label || D.meta.tool || '';
 const SRC_NOTES = SRC.notes || {};
+/* The live tab exists for sessions active at generation time whose source has a live view (meta.source.live). */
+function liveTab() { return !!D.meta.active && SRC.live !== false; }
 
 const CAT_LABEL = {read: '读代码与文档', test: '测试与检查', write: '写代码', git: 'git', wait: '等待与轮询', agent: '派子代理', other: '其他'};
 const CAT_SHORT = {read: '读', test: '测', write: '写', git: 'git', wait: '等', agent: '派', other: '其他'};

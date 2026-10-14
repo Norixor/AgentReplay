@@ -116,7 +116,9 @@ class App:
         return next((r for r in self.rows if r["key"] == key), None)
 
     def live_info(self, row):
-        """{state, running} for an active session, None when the session cannot be followed."""
+        """{state, running} for an active session, None when the session cannot be followed (or its source has no live view)."""
+        if not sources.get(row["tool"]).live_supported:
+            return None
         try:
             return live.row_info(row, self.recs)
         except Exception:  # a broken live view must not break the list
@@ -138,10 +140,11 @@ class App:
 
     def signature(self, row):
         h = hashlib.sha1(code_signature().encode())
+        src = sources.get(row["tool"])
         for p in sorted(self.tree_files(row)):
             try:
-                st = os.stat(p)
-                h.update(("%s|%d|%d" % (p, st.st_size, st.st_mtime_ns)).encode())
+                size, mtime = src.stat(p)
+                h.update(("%s|%d|%r" % (p, size, mtime)).encode())
             except OSError:
                 pass
         return h.hexdigest()[:16]
@@ -312,6 +315,10 @@ class Handler(BaseHTTPRequestHandler):
             row = app.row(key)
             if row is None:
                 return self._json({"ok": False, "error": "没有这个会话：%s" % key}, 404)
+        src = sources.get(row["tool"])
+        if not src.live_supported:  # a business answer, not a failure: the page simply has no live view for this source
+            return self._json({"ok": False, "code": "live_unsupported", "tool": src.id,
+                               "error": "%s 的会话暂不支持实时页" % src.label}, 409)
         try:
             return self._json(live.snapshot(row, app.recs))
         except Exception as e:  # report instead of dropping the connection

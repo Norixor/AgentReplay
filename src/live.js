@@ -25,7 +25,7 @@ const LSTATE = {exec: ['执行中', 'exec'], think: ['思考或输出中', 'thin
 const EV_KIND = {user: '用户消息', dispatch: '派单', handback: '子代理交回', hook: '钩子拦截', merge: '合入主线', compact: '压缩', fail: '失败调用'};
 
 async function liveFetch() {
-  if (LV.inflight) return;
+  if (LV.inflight || SRC.live === false) return;  // the source has no live API: callers fall back to the recording
   LV.inflight = true;
   const t0 = performance.now();
   try {

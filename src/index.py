@@ -49,19 +49,19 @@ def build_index(refresh=False):
     todo, keep = [], {}
     for tool, p in _files():
         try:
-            st = os.stat(p)
+            size, mtime = sources.get(tool).stat(p)
         except OSError:
             continue
         c = cache.get(p)
-        if c and c["size"] == st.st_size and c["mtime"] == st.st_mtime:
+        if c and c["size"] == size and c["mtime"] == mtime:
             keep[p] = c
         else:
-            todo.append((tool, p, st))
+            todo.append((tool, p, size, mtime))
 
     def one(a):
-        tool, p, st = a
+        tool, p, size, mtime = a
         rec = sources.get(tool).scan(p)
-        return p, {"size": st.st_size, "mtime": st.st_mtime, "rec": rec}
+        return p, {"size": size, "mtime": mtime, "rec": rec}
 
     with ThreadPoolExecutor(8) as ex:
         for p, c in ex.map(one, todo):
