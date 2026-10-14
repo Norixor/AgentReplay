@@ -222,7 +222,9 @@ def cases():
         case("reading (files, stat, scan, tree, parse) left the database and its -wal file byte-identical", sha0 == sha1)
 
         # --- list rows through the index; changes invalidate the cache
-        config.configure({"claude": os.path.join(tmp, "n1"), "codex": os.path.join(tmp, "n2"), "opencode": root}, home=os.path.join(tmp, "home"))
+        # every other registered source gets an empty directory, so only the synthetic database is indexed
+        empty = {s.id: os.path.join(tmp, "none-" + s.id) for s in sources.all() if s.id != "opencode"}
+        config.configure(dict(empty, opencode=root), home=os.path.join(tmp, "home"))
         recs, st1 = index.build_index()
         rows = [r for r in index.list_sessions(recs) if r["tool"] == "opencode"]
         ra = next(r for r in rows if r["id"] == A)
