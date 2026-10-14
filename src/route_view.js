@@ -185,24 +185,27 @@ function renderRoute(container, opts) {
     if (s == null) { const f = items.find(i => i.step != null); s = f ? f.step : null; }
     return s;
   }
-  /* Clicks open the detail window (modal.js); without it the old jump into the replay view is used. */
+  /* Clicks open the detail window through liveOpen (live_open.js): a step or agent newer than the page's data is fetched first.
+   * Steps built from the /api/live snapshot have negative numbers (no real step number): those open by time. Without the
+   * dialog code the old jump into the replay view is used. */
   function openDetail(nd) {
-    if (typeof showDetail === 'function') {
+    if (typeof liveOpen === 'function') {
+      if (nd.steps.some(n => n < 0)) return liveOpenAt(nd.agent, nd.items[0].ts, false, null, {pend: nd.st === 'pend'});
       if (nd.kind === 'group') {   // every item of the group, in time order
         const st = RM.distinct([].concat.apply([], nd.members.map(m => (m.steps.length ? m.steps : [nearStep(m)]))));
-        if (st.length) return showDetail({type: 'steps', agent: nd.agent, steps: st, title: nd.title});
-        return showDetail({type: 'agent', agent: nd.agent});
+        if (st.length) return liveOpen({type: 'steps', agent: nd.agent, steps: st, title: nd.title});
+        return liveOpen({type: 'agent', agent: nd.agent});
       }
-      if (nd.kind === 'user' && nd.ti != null) return showDetail({type: 'turn', turn: nd.ti});
-      if (nd.steps.length > 1) return showDetail({type: 'steps', agent: nd.agent, steps: nd.steps, title: nd.title});
+      if (nd.kind === 'user' && nd.ti != null) return liveOpen({type: 'turn', turn: nd.ti});
+      if (nd.steps.length > 1) return liveOpen({type: 'steps', agent: nd.agent, steps: nd.steps, title: nd.title});
       const s = nd.steps.length ? nd.steps[0] : nearStep(nd);
-      if (s != null) return showDetail({type: 'step', agent: nd.agent, step: s});
-      return showDetail({type: 'agent', agent: nd.agent});
+      if (s != null) return liveOpen({type: 'step', agent: nd.agent, step: s});
+      return liveOpen({type: 'agent', agent: nd.agent});
     }
     if (typeof jumpTo === 'function') jumpTo(nd.agent, nd.items[0].ts, nd.kind === 'user' || nd.kind === 'compact', nd.firstStep);
   }
   function openAgent(id) {
-    if (typeof showDetail === 'function') showDetail({type: 'agent', agent: id});
+    if (typeof liveOpen === 'function') liveOpen({type: 'agent', agent: id});
     else if (typeof jumpTo === 'function') jumpTo(id, 0, false, null);
   }
 

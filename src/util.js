@@ -66,12 +66,10 @@ function legacyCopy(text, done) {
 function jumpHash(agentId, ts, turn, stepN) {
   return (agentId === 'main' ? '#main' : '#agent/' + agentId) + (ts ? '?t=' + Math.round(ts) + (turn ? '&k=turn' : '') + (stepN != null ? '&s=' + stepN : '') : '');
 }
-/* Opens the detail dialog (modal.js) for "agent X at time ts": a clicked bar, mark, table row or event. Nothing navigates. */
+/* Opens the detail dialog (modal.js) for "agent X at time ts": a clicked bar, mark, table row or event. Nothing navigates.
+ * In a live session a target newer than the page's data is fetched first (live_open.js). */
 function jumpTo(agentId, ts, turn, stepN) {
-  const spec = mdFromTime(agentId, ts, turn, stepN);
-  if (!spec) { toast('回看数据里没有这个代理，点「刷新回看数据」更新。'); return; }
-  showDetail(spec);
-  if (ts && ts > D.meta.end + 3000) toast('这一步发生在回看数据生成之后，点「刷新回看数据」才看得到。');
+  return liveOpenAt(agentId, ts, turn, stepN);
 }
 /* The old behaviour: leave for the replay page at that place. Only used for explicit "open in the replay" requests. */
 function jumpToReplay(agentId, ts, turn, stepN) {

@@ -46,3 +46,10 @@
 .tbl tr.is-running td{background:var(--accent-soft)}.tbl tr.is-running td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .sx-seg{display:inline-flex;gap:0}.sx-seg button{border-radius:0;margin:0}.sx-seg button:first-child{border-radius:6px 0 0 6px}.sx-seg button:last-child{border-radius:0 6px 6px 0}.sx-seg button.on{background:var(--accent);border-color:var(--accent);color:var(--chip-ink)}
 .sx-head{margin:6px 0 10px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.sx-head .sx-now{max-width:none;white-space:normal}
+/* Cards: the running call and the recent rows open the step detail (live_open.js) */
+.lo-click{cursor:pointer}
+.lnow.lo-click:hover,.lrecent li.lo-click:hover{background:var(--accent-soft)}
+.lrecent li.lo-click{border-radius:4px;margin:0 -4px;padding:1px 4px}
+.lo-click:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.lo-name{text-decoration:underline dotted}
+.lo-busy{cursor:progress;opacity:.65}

@@ -12,17 +12,21 @@ const LS_TAPS = new Set();
 
 const lsHasPend = s => s.calls.some(c => c.st === 'pend');
 
+/* Registers a sub-agent that appeared after the page was generated (its steps arrive through lsMerge). */
+function lsAddAgent(x) {
+  if (A[x.id]) return A[x.id];
+  x.turns = [];
+  A[x.id] = x;
+  D.agents.push(x);
+  SUBS.push(x);
+  return x;
+}
+
 /* Merges one /api/steps answer into agent `a`. Returns {added, updated, touched, redo} for the views. */
 function lsMerge(a, j) {
   const info = {added: [], updated: [], touched: [], redo: null};
   const touched = new Set();
-  (j.agents || []).forEach(x => {   // sub-agents that appeared since the page was generated
-    if (A[x.id]) return;
-    x.turns = [];
-    A[x.id] = x;
-    D.agents.push(x);
-    SUBS.push(x);
-  });
+  (j.agents || []).forEach(lsAddAgent);   // sub-agents that appeared since the page was generated
   Object.assign(a, j.stats);
   D.totals = j.totals;
   D.meta.end = Math.max(D.meta.end, j.end || 0);
@@ -49,6 +53,8 @@ function lsMerge(a, j) {
     steps[k] = s;
     info.updated.push({s, ti});
   });
+  // The step lookups (tl_model.js findStepAt, modal_model.js mdStepIndex) cache per agent: a replaced step has the same count.
+  if (info.added.length || info.updated.length || info.redo != null) { a._stepIdx = null; a._mdIdx = null; }
   info.touched = Array.from(touched).sort((x, y) => x - y);
   return info;
 }

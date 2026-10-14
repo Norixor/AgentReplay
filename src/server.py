@@ -341,7 +341,7 @@ class Handler(BaseHTTPRequestHandler):
                 return default
         pend = [int(x) for x in (q.get("pend", [""])[0]).split(",")[:400] if x.isdigit()]
         try:
-            return self._json(app.feed.answer(row, (q.get("agent", ["main"])[0] or "main")[:80], num("after"), num("turns"), pend, num("known")))
+            return self._json(app.feed.answer(row, (q.get("agent", ["main"])[0] or "main")[:80], num("after"), num("turns"), pend, num("known"), bool(num("full"))))
         except Exception as e:  # report instead of dropping the connection
             return self._json({"ok": False, "error": "%s: %s" % (type(e).__name__, e)}, 500)
 

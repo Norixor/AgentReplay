@@ -61,3 +61,5 @@ html.md-lock{overflow:hidden}
   .md-facts{gap:6px 12px}
 }
 @media (prefers-reduced-motion:reduce){.md-back,.md-win{animation:none}}
+/* A step whose call is still running: banner above the body */
+.md-run{display:flex;align-items:center;gap:8px;margin:6px 0;padding:6px 12px;border-radius:8px;background:var(--accent-soft);font-size:13px}

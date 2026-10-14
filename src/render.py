@@ -13,7 +13,7 @@ JS_FILES = ("replay.js", "util.js", "modal_model.js", "modal_view.js", "modal.js
             "tl_focus.js", "tl_focus_draw.js", "tl_focus_stats.js", "steps.js", "views.js", "view_agents.js", "sub_status.js", "time_cats.js",
             "graph_layout.js", "graph_node.js", "graph_fx.js", "graph_hud.js", "graph_view.js",
             "route_model.js", "route_layout.js", "route_nav.js", "route_view.js", "route_live.js", "live.js",
-            "term_format.js", "term.js", "live_steps.js", "steps_view.js",
+            "term_format.js", "term.js", "live_steps.js", "live_open.js", "steps_view.js",
             "analysis_path.js", "analysis_detect.js", "analysis_bars.js", "analysis_ui.js", "analysis.js", "boot.js")
 CSS_FILES = ("replay.css", "polish.css", "timeline.css", "tl_focus.css", "analysis.css", "live.css", "term.css", "live_steps.css", "graph.css", "route.css", "modal.css")
 BACK_LINK = '<a class="back" href="/" title="回到会话列表">← 会话列表</a>'

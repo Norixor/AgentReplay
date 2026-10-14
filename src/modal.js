@@ -5,7 +5,7 @@
  * close button close everything; focus moves into the dialog, stays there while Tab is pressed and returns to the opener.
  * While an agent is shown in an active session the dialog follows it every 5 s through live_steps.js (no polling of its own). */
 
-const MD = {stack: [], back: null, win: null, opener: null, live: null, tap: null, seq: 0};
+const MD = {stack: [], back: null, win: null, opener: null, live: null, tap: null, seq: 0, extra: [], timer: 0};
 const MD_FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
 
 function showDetail(spec) {
@@ -119,6 +119,7 @@ function mdPaint(reset) {
     target.focus({preventScroll: true});
   }
   if (out.r.ok && out.r.type === 'agent') mdFollow(out.r.a);
+  else if (out.r.ok && out.r.type === 'step' && lsHasPend(out.r.s)) mdFollowStep(out.r);
 }
 
 /* ---- live follow of the agent in view */
@@ -126,6 +127,8 @@ function mdStopLive() {
   MD.seq++;
   if (MD.live) { MD.live.destroy(); MD.live = null; }
   if (MD.tap) { LS_TAPS.delete(MD.tap); MD.tap = null; }
+  clearInterval(MD.timer);
+  MD.extra.splice(0).forEach(el => el.remove());
 }
 
 function mdRepaintAgent(a) {
@@ -148,6 +151,40 @@ function mdFollow(a) {
   sxRefresh().then(repaint);   // first status without waiting for the 5 s tick
   // The page may already follow this agent (its own replay view): then its poll feeds us through LS_TAPS.
   if (!LS_ACTIVE[a.id]) MD.live = lsStart(a, MD.win.querySelector('#md-ls'), () => {}, () => {});
+}
+
+/* A step with an unfinished call: a banner says it is running, and the step is re-read every 5 s (live_steps.js, the same
+ * poll as for an agent) until its calls have results; then the body is redrawn with the result and the follow stops. */
+function mdFollowStep(r) {
+  if (!D.meta.active) return;
+  const a = r.a, n = r.s.n, seq = MD.seq, body = MD.win.querySelector('.md-body');
+  const run = document.createElement('div'), bar = document.createElement('div');
+  run.className = 'md-run';
+  run.setAttribute('role', 'status');
+  bar.className = 'md-ls lsbar';
+  body.parentNode.insertBefore(run, body);
+  body.parentNode.insertBefore(bar, body);
+  MD.extra.push(run, bar);
+  const paintRun = () => {
+    const hit = mdFindStep(a, n), c = hit && hit.s.calls.find(x => x.st === 'pend');
+    if (c) run.innerHTML = '<span class="ls-dot" aria-hidden="true"></span><b>执行中</b> ' + esc(c.name) + ' · 已 ' + fmtDur(Math.max(0, Date.now() - hit.s.ts)) + '<span class="dim">　结果出来后这里会自动更新</span>';
+  };
+  let shown = r.s;
+  MD.tap = ag => {
+    if (ag !== a || seq !== MD.seq) return;
+    const hit = mdFindStep(a, n);
+    if (!hit || hit.s === shown) return;
+    shown = hit.s;
+    const out = mdRender(MD.stack[MD.stack.length - 1]), top = body.scrollTop;
+    body.innerHTML = out.html;
+    mdDecorate(body);
+    body.scrollTop = top;
+    if (!lsHasPend(hit.s)) mdStopLive();   // finished: the body now shows the result
+  };
+  LS_TAPS.add(MD.tap);
+  paintRun();
+  MD.timer = setInterval(paintRun, 1000);
+  if (!LS_ACTIVE[a.id]) MD.live = lsStart(a, bar, () => {}, () => {});
 }
 
 /* ---- clickable references in markup: any element with data-md='<spec json>' opens the dialog */

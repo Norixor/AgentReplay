@@ -97,9 +97,11 @@ class StepFeed:
             f = e.flat[agent["id"]] = [(ti, s) for ti, t in enumerate(agent["turns"]) for s in t["steps"]]
         return f
 
-    def answer(self, row, agent_id, after=0, nturns=0, pend=(), known=0):
+    def answer(self, row, agent_id, after=0, nturns=0, pend=(), known=0, full=False):
         """JSON-ready dict: steps after `after`, refreshed steps (the last known one and those listed in `pend`), turn
-        headers from the last known turn on, the agent's statistics, and agents the page does not know yet (index >= known)."""
+        headers from the last known turn on, the agent's statistics, and agents the page does not know yet (index >= known).
+        `full` also returns the whole agent record (no turns, briefing included) as `agentRec`: a page that asks for an
+        agent it has never seen (a click on a sub-agent newer than the page) needs more than the statistics."""
         t0 = time.time()
         self._sweep(t0)
         key = "%s:%s" % (row["tool"], row["id"])
@@ -135,6 +137,8 @@ class StepFeed:
                 state="done" if agent.get("doneTs") else "running",
                 agents=[{k: v for k, v in a.items() if k != "turns"} for a in data["agents"][known:] if a["id"] != agent_id],
                 totals=data["totals"], end=data["meta"]["end"])
+            if full:
+                out["agentRec"] = {k: v for k, v in agent.items() if k != "turns"}
         out = walk(out)
         out["took"] = round((time.time() - t0) * 1000)
         return out

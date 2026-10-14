@@ -479,8 +479,7 @@ function grSelect(id) {
 function grOpen(id) {
   const o = GR.nodes.get(id);
   if (!o || !o.n.card) return;
-  if (!A[id]) { toast('回看数据里还没有这个代理，点「刷新回看数据」更新。'); return; }
-  showDetail({type: 'agent', agent: id});
+  liveOpen({type: 'agent', agent: id});   // an agent the page has never seen is fetched first (live_open.js)
 }
 
 /* Recent steps of the selected node, below the canvas: the same card the card view shows. */
