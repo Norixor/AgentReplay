@@ -1,7 +1,7 @@
 /* Single-agent timeline view (#timeline/agent/<id>) and the colours of the time-segmentation categories (timeseg.js). */
-:root{--c-subwait:#0e8a9a;--c-think:#8ea4c2;--c-user:#c1622a;--c-idle:#b5bcc7}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--c-subwait:#3fc1d0;--c-think:#5f7896;--c-user:#e8915a;--c-idle:#4a5565}}
-:root[data-theme="dark"]{--c-subwait:#3fc1d0;--c-think:#5f7896;--c-user:#e8915a;--c-idle:#4a5565}
+:root{--c-subwait:#0e7f8e;--c-think:#5f6f86;--c-user:#c4502e;--c-idle:#cdd2d9}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--c-subwait:#3fc1d0;--c-think:#56657d;--c-user:#f08a5d;--c-idle:#313843}}
+:root[data-theme="dark"]{--c-subwait:#3fc1d0;--c-think:#56657d;--c-user:#f08a5d;--c-idle:#313843}
 
 .tf-nav{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:12px 0 2px}
 .tf-nav .tf-pos{color:var(--dim);font-size:12px;margin:0 2px}

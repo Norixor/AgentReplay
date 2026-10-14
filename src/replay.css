@@ -2,7 +2,7 @@
   --bg:#f6f7f9;--panel:#fff;--ink:#1c2128;--dim:#6b7380;--line:#e1e5ea;--accent:#2563eb;--accent-soft:#e8effd;
   --ok:#15803d;--bad:#b91c1c;--bad-soft:#fdecec;--warn-soft:#fff6e0;--warn:#8a5a00;--hl:#fff1bd;
   --haiku:#38b2a3;--sonnet:#4f7df3;--opus:#e0892b;--fable:#b64fd6;
-  --c-read:#6b7a99;--c-test:#2f8f5b;--c-write:#c0568a;--c-git:#7b61c9;--c-wait:#c28a1f;--c-agent:#2563eb;--c-other:#8b929e;
+  --c-read:#2f6fd6;--c-test:#26804f;--c-write:#b44a7f;--c-git:#7259c4;--c-wait:#d9a21b;--c-agent:#8fb52b;--c-other:#8b929e;
   --seg-test:#14532d;--seg-wait:#7c4a03;--seg-long:#1f2937;
   --code:#f1f3f6;
 }
@@ -11,7 +11,7 @@
     --bg:#0f1318;--panel:#171c23;--ink:#dde3ea;--dim:#8d97a5;--line:#2a323d;--accent:#6c9bff;--accent-soft:#1b2842;
     --ok:#4ade80;--bad:#f87171;--bad-soft:#3a1d1f;--warn-soft:#352a10;--warn:#f1c35b;--hl:#4a3d10;
     --haiku:#45c4b3;--sonnet:#6b93ff;--opus:#f0a04b;--fable:#cf72ee;
-    --c-read:#8b9bbd;--c-test:#4cc489;--c-write:#e17bae;--c-git:#a18ae8;--c-wait:#e0a940;--c-agent:#6c9bff;--c-other:#9aa1ad;
+    --c-read:#6c9cf0;--c-test:#4cc489;--c-write:#e17bae;--c-git:#a18ae8;--c-wait:#e8b53a;--c-agent:#b3d45a;--c-other:#9aa1ad;
     --seg-test:#bbf7d0;--seg-wait:#fde68a;--seg-long:#f3f4f6;
     --code:#1e252e;
   }
@@ -20,7 +20,7 @@
   --bg:#0f1318;--panel:#171c23;--ink:#dde3ea;--dim:#8d97a5;--line:#2a323d;--accent:#6c9bff;--accent-soft:#1b2842;
   --ok:#4ade80;--bad:#f87171;--bad-soft:#3a1d1f;--warn-soft:#352a10;--warn:#f1c35b;--hl:#4a3d10;
   --haiku:#45c4b3;--sonnet:#6b93ff;--opus:#f0a04b;--fable:#cf72ee;
-  --c-read:#8b9bbd;--c-test:#4cc489;--c-write:#e17bae;--c-git:#a18ae8;--c-wait:#e0a940;--c-agent:#6c9bff;--c-other:#9aa1ad;
+  --c-read:#6c9cf0;--c-test:#4cc489;--c-write:#e17bae;--c-git:#a18ae8;--c-wait:#e8b53a;--c-agent:#b3d45a;--c-other:#9aa1ad;
   --seg-test:#bbf7d0;--seg-wait:#fde68a;--seg-long:#f3f4f6;--code:#1e252e;
 }
 *{box-sizing:border-box}

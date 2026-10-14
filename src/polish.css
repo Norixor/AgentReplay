@@ -46,7 +46,7 @@ input[type=search]:focus,select:focus{outline:2px solid var(--focus);outline-off
 .badge{color:var(--dim)}
 .fam{color:var(--chip-ink)}.src,.tool,.b-human,.b-followup,.b-handback,.b-notify,.b-goal,.b-goalstatus,.b-xsession,.b-compact,.b-stophook,.b-info,.st-active,.w-trig b,.w-said b,.w-desc b,.w-disp b,.w-hook b,.w-rsum b{color:var(--chip-ink)}
 .tool.cat-read{background:var(--c-read)}
-@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .tool{background:#5b6a88}:root:not([data-theme="dark"]) .tool.cat-test{background:#237a4c}:root:not([data-theme="dark"]) .tool.cat-write{background:#b04479}:root:not([data-theme="dark"]) .tool.cat-git{background:#6a4fb8}:root:not([data-theme="dark"]) .tool.cat-wait{background:#9a6a0f}:root:not([data-theme="dark"]) .tool.cat-agent{background:#1f55d4}}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .tool{background:#5f6773}:root:not([data-theme="dark"]) .tool.cat-read{background:#2a63c4}:root:not([data-theme="dark"]) .tool.cat-test{background:#237a4c}:root:not([data-theme="dark"]) .tool.cat-write{background:#b04479}:root:not([data-theme="dark"]) .tool.cat-git{background:#6a4fb8}:root:not([data-theme="dark"]) .tool.cat-wait{background:#9a6a0f}:root:not([data-theme="dark"]) .tool.cat-agent{background:#5a7a10}}
 /* cards and tables share one look */
 .card,.stat,.tblwrap,.turn,.fbar,.lcard{border-radius:10px}
 .stat .sv{font-variant-numeric:tabular-nums}
