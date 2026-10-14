@@ -2,6 +2,8 @@
 """Tests of the opencode source (src/source_opencode.py, opencode_scan.py, parse_opencode.py) on small synthetic SQLite
 databases created here (WAL mode, like opencode's own); no real session data is read or stored.
 
+The live view (live_opencode.py, opencode_tail.py) is covered by live_cases().
+
 Covers: virtual session paths and their stat() following new messages (also from sub-sessions), the folded index row,
 the session tree, the page model (turns, steps, calls with measured durations, failed calls, sub-session link, error
 events), tokens and prices (cost column ignored, claude, codex and gemini tables, unknown model, local provider), empty or
@@ -20,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import config  # noqa: E402
 import index  # noqa: E402
+import live  # noqa: E402
 import opencode_scan  # noqa: E402
 import source_opencode  # noqa: E402
 import sources  # noqa: E402
@@ -78,7 +81,18 @@ class Db:
         return mid
 
     def part(self, sid, mid, data, t):
-        self.con.execute("INSERT INTO part VALUES (?,?,?,?,?,?)", (self._id("prt"), mid, sid, t, t, json.dumps(data)))
+        pid = self._id("prt")
+        self.con.execute("INSERT INTO part VALUES (?,?,?,?,?,?)", (pid, mid, sid, t, t, json.dumps(data)))
+        return pid
+
+    def rewrite(self, table, rid, fn, t):
+        """Change a row in place the way a running opencode does (new JSON, new time_updated)."""
+        d = json.loads(self.con.execute("SELECT data FROM %s WHERE id = ?" % table, (rid,)).fetchone()[0])
+        fn(d)
+        self.con.execute("UPDATE %s SET data = ?, time_updated = ? WHERE id = ?" % table, (json.dumps(d), t, rid))
+
+    def part_ids(self, mid):
+        return [r[0] for r in self.con.execute("SELECT id FROM part WHERE message_id = ? ORDER BY time_created, id", (mid,))]
 
     def close(self):
         self.con.close()
@@ -134,6 +148,191 @@ def build(db):
     return A, B, C
 
 
+def mk_live(dbfile, sid, model="gpt-5.6-terra", start=T0):
+    return live.Live({"tool": "opencode", "id": sid, "path": opencode_scan.vpath(dbfile, sid), "key": "opencode:" + sid, "start": start, "model": model}, {})
+
+
+def money(a):
+    return sum(v[0] for v in a.buckets.values())
+
+
+def end_tools(db, mid, t0, t1, t):
+    """Complete every tool part of a message."""
+    def done(d):
+        if d.get("type") == "tool":
+            d["state"].update(status="completed", output="ok", time={"start": t0, "end": t1})
+    for pid in db.part_ids(mid):
+        db.rewrite("part", pid, done, t)
+
+
+def live_cases(case, tmp):
+    """Live view on synthetic databases: parity with the replay parse, increments, in-place updates, sub-sessions, window."""
+    src = sources.get("opencode")
+    d1 = os.path.join(tmp, "live1")
+    os.makedirs(d1)
+    f1 = os.path.join(d1, "opencode-.db")
+    db1 = Db(f1)
+    orig_connect = opencode_scan.connect
+    opened = []
+
+    def counting(p):
+        opened.append(p)
+        return orig_connect(p)
+
+    def locked(p):
+        raise sqlite3.OperationalError("database is locked")
+
+    opencode_scan.connect = counting
+    try:
+        A, B, C = build(db1)
+        pa = opencode_scan.vpath(f1, A)
+        lv = mk_live(f1, A)
+        now = T0 + 30_000
+        sha0 = (sha(f1), sha(f1 + "-wal"))
+        lv.refresh(now)
+        snap = lv.snapshot(now)
+        data = src.parse(A, src.tree({}, A, pa), "Fix login", 600, 4000)
+        ag = {a["id"]: a for a in data["agents"]}
+        main, sub = lv.agents["main"], lv.agents[C]
+
+        def same(st, a):
+            return all(st.tok.get(k, 0) == a["tok"][k] for k in ("in", "cw5", "cr", "out", "rsn")) and near(money(st), a["cost"])
+
+        case("live: first build follows the main session and its sub-session (parent_id)", list(lv.agents) == ["main", C] and sub.parent_tid == A and lv.parent_of(sub) == "main")
+        case("live: tokens and amount of every agent equal the replay page's", same(main, ag["main"]) and same(sub, ag[C]))
+        case("live: steps equal the replay page's (a failed empty message is no step)", main.steps == 3 and sub.steps == 1 and main.prefix_steps == 0 and not main.approx)
+        case("live: sub-session named from its task call, linked by the task id", sub.desc == "explore · scan" and (sub.tu or "").startswith("prt_"))
+        case("live: unpriced model reported, local model costs nothing", lv.unpriced == {"mystery-1"} and money(sub) == 0.0)
+        case("live: a sub-session whose last response finished is done and handed back", sub.done and any(e["k"] == "handback" and e["agent"] == C for e in lv.events))
+        case("live: dispatch, user message and failed calls are in the event stream",
+             {e["k"] for e in lv.events} >= {"dispatch", "user", "handback", "fail"} and sum(1 for e in lv.events if e["k"] == "fail") == 2)
+        case("live: snapshot answers like the other sources (cards, subs, rate, unpriced)", snap["ok"] and snap["tool"] == "opencode" and snap["cards"][0]["id"] == "main"
+             and snap["cards"][0]["steps"] == 3 and snap["subs"][C]["state"] == "done" and snap["rate"]["c60"] > 0 and snap["unpriced"] == ["mystery-1"])
+        case("live: reading left the database and its -wal file byte-identical", (sha(f1), sha(f1 + "-wal")) == sha0)
+        n = len(opened)
+        lv.refresh(now + 1000)
+        case("live: a refresh with an unchanged database opens no connection", len(opened) == n)
+
+        # --- a response that is still streaming: pending call, then completed with tokens; the same row written again
+        t = T0 + 40_000
+        m1 = db1.assistant(A, t, None, "gpt-5.6-terra", "p", None, [{"type": "step-start"}, {"type": "text", "text": "running it"}], finish=None)
+        p1 = db1.part(A, m1, tool("bash", {"command": "sleep 30", "description": "wait"}, "", t + 500, None, status="running"), t + 500)
+        db1.touch(A, t + 500)
+        lv.refresh(t + 1000)
+        card = lv.snapshot(t + 1000)["cards"][0]
+        case("live: a new response is a step and its running call is pending", main.steps == 4 and p1 in main.pending and card["state"] == "exec" and card["detail"]["tool"] == "bash"
+             and card["steps"] == 4)
+        tok0, cost0 = dict(main.tok), money(main)
+
+        def finish_msg(d):
+            d["time"]["completed"] = t + 5000
+            d["finish"] = "stop"
+            d["tokens"] = {"input": 700, "output": 80, "reasoning": 20, "cache": {"read": 1000, "write": 0}}
+
+        db1.rewrite("part", p1, lambda d: d["state"].update(status="completed", output="woke", time={"start": t + 500, "end": t + 4900}, metadata={"exit": 0}), t + 4900)
+        db1.rewrite("message", m1, finish_msg, t + 5000)
+        lv.refresh(t + 6000)
+        want = source_opencode.price_step("gpt-5.6-terra", {"in": 700, "out": 80, "rsn": 20, "cr": 1000, "cw": 0, "provider": "p"})
+        case("live: completing the call clears pending without a new step", not main.pending and main.steps == 4)
+        case("live: tokens and amount of the completed message are added once (out includes reasoning)",
+             main.tok["in"] - tok0["in"] == 700 and main.tok["cr"] - tok0["cr"] == 1000 and main.tok["out"] - tok0["out"] == 100 and near(money(main) - cost0, want["cost"]))
+        case("live: after a final response the card waits for the user", lv.snapshot(t + 6000)["cards"][0]["state"] == "idle")
+        tok1, cost1 = dict(main.tok), money(main)
+        db1.rewrite("message", m1, lambda d: None, t + 5500)   # the same rows written again
+        db1.rewrite("part", p1, lambda d: None, t + 5500)
+        lv.refresh(t + 7000)
+        case("live: the same message written again is not counted twice", main.tok == tok1 and near(money(main), cost1) and main.steps == 4)
+
+        # --- the watermark: a row with the same stamp as the newest seen, and a late commit with an older one
+        mark = lv.impl.tail_of["main"].mark
+        db1.user(A, "same ms", mark)
+        db1.user(A, "late commit", mark - 500)
+        lv.refresh(t + 8000)
+        texts = [e["text"] for e in lv.events if e["k"] == "user"]
+        case("live: rows at the watermark and just behind it are not missed", "same ms" in texts and "late commit" in texts)
+
+        # --- a database that cannot be read right now is retried, not dropped
+        db1.user(A, "while locked", t + 9000)
+        opencode_scan.connect = locked
+        lv.refresh(t + 9500)
+        locked_seen = any(e["text"] == "while locked" for e in lv.events)
+        opencode_scan.connect = counting
+        lv.refresh(t + 10_000)
+        case("live: an unreadable database yields nothing and the next poll catches up", not locked_seen and any(e["text"] == "while locked" for e in lv.events))
+
+        # --- sub-sessions appearing later: one ends by itself, one is returned by its parent's task call
+        D, E = "ses_D", "ses_E"
+        t2 = T0 + 50_000
+        db1.session(D, "later child", parent=A, agent="general", model={"id": "gpt-5.6-terra", "providerID": "p"}, t=t2)
+        db1.user(D, "do part one", t2)
+        md = db1.assistant(D, t2 + 100, None, "gpt-5.6-terra", "p", None, [{"type": "step-start"}, tool("bash", {"command": "make"}, "", t2 + 200, None, status="running")], finish=None)
+        db1.part(D, md, tool("read", {"filePath": "/x"}, "", t2 + 300, None, status="running"), t2 + 300)
+        db1.session(E, "other child", parent=A, agent="general", model={"id": "gpt-5.6-terra", "providerID": "p"}, t=t2)
+        db1.user(E, "do part two", t2)
+        db1.assistant(E, t2 + 100, None, "gpt-5.6-terra", "p", None, [{"type": "step-start"}, {"type": "text", "text": "thinking"}], finish=None)
+        mt = db1.assistant(A, t2, None, "gpt-5.6-terra", "p", None, [
+            tool("task", {"subagent_type": "general", "description": "part one", "prompt": "line1\nline2"}, "", t2 + 50, None, status="running", meta={"sessionId": D}),
+            tool("task", {"subagent_type": "general", "description": "part two", "prompt": "p2"}, "", t2 + 60, None, status="running", meta={"sessionId": E})], finish=None)
+        db1.touch(A, t2 + 400)
+        lv.refresh(t2 + 1000)
+        sd, se = lv.agents.get(D), lv.agents.get(E)
+        snap = lv.snapshot(t2 + 1000)
+        case("live: sub-sessions created after the first build are discovered and linked to their task calls",
+             sd is not None and se is not None and sd.desc == "general · part one" and se.desc == "general · part two" and lv.parent_of(sd) == "main")
+        case("live: a running sub-session shows its pending calls", len(sd.pending) == 2 and snap["subs"][D]["state"] == "exec" and not sd.done
+             and {c["id"] for c in snap["cards"]} >= {"main", D, E})
+        case("live: task calls without a result keep the parent waiting", snap["cards"][0]["state"] == "waiting")
+        case("live: dispatch events carry the brief", any(e["k"] == "dispatch" and "part one" in e["text"] for e in lv.events) and lv.briefs[sd.tu]["lines"] == ["line1", "line2"])
+
+        end_tools(db1, md, t2 + 200, t2 + 2000, t2 + 2000)
+        db1.rewrite("message", md, lambda d: d["time"].update(completed=t2 + 3000) or d.update(finish="stop", tokens={"input": 10, "output": 5}), t2 + 3000)
+        task_e = db1.part_ids(mt)[1]
+        db1.rewrite("part", task_e, lambda d: d["state"].update(status="completed", output="<task_result>b</task_result>", time={"start": t2 + 60, "end": t2 + 3500}), t2 + 3500)
+        lv.refresh(t2 + 4000)
+        case("live: a sub-session that finished by itself is done and hands back", sd.done and sd.done_ts == t2 + 3000 and not sd.pending)
+        case("live: a sub-session whose parent's task call came back is done too", se.done and any(e["k"] == "handback" and e["agent"] == E for e in lv.events))
+        case("live: the parent still waits for its other task call", len([c for c in main.pending.values() if c["cat"] == "agent"]) == 1)
+        snap = lv.snapshot(t2 + 4000)
+        case("live: returned sub-agents are listed as returned", {c["id"] for c in snap["returned"]} >= {C, D, E} and snap["subs"][E]["state"] == "done")
+        sd_steps = sd.steps
+        db1.user(D, "one more thing", t2 + 5000)
+        lv.refresh(t2 + 5500)
+        case("live: a follow-up message reopens a returned sub-session", not sd.done and sd.steps == sd_steps)
+    finally:
+        opencode_scan.connect = orig_connect
+        db1.close()
+
+    # --- opening window: older responses are only counted; old sub-sessions are not followed
+    d2 = os.path.join(tmp, "live2")
+    os.makedirs(d2)
+    f2 = os.path.join(d2, "opencode-.db")
+    db2 = Db(f2)
+    try:
+        NOW = T0 + 4 * 3600 * 1000
+        W, OLD, STALE = "ses_W", "ses_OLD", "ses_STALE"
+        db2.session(W, "long one", model={"id": "gpt-5.6-terra", "providerID": "p"}, t=T0)
+        for i in range(3):
+            db2.user(W, "old %d" % i, T0 + i * 1000)
+            db2.assistant(W, T0 + i * 1000 + 100, T0 + i * 1000 + 500, "gpt-5.6-terra", "p", {"in": 100, "out": 10}, [{"type": "text", "text": "x"}], finish="stop")
+        db2.user(W, "recent", NOW - 600_000)
+        db2.assistant(W, NOW - 590_000, NOW - 580_000, "gpt-5.6-terra", "p", {"in": 1000, "out": 100}, [{"type": "text", "text": "y"}], finish="stop")
+        for sid, ended in ((OLD, True), (STALE, False)):
+            db2.session(sid, sid, parent=W, agent="general", model={"id": "gpt-5.6-terra", "providerID": "p"}, t=T0 + 5000)
+            db2.user(sid, "go", T0 + 5000)
+            db2.assistant(sid, T0 + 5100, T0 + 5900 if ended else None, "gpt-5.6-terra", "p", {"in": 5, "out": 5} if ended else None,
+                          [{"type": "text", "text": "z"}], finish="stop" if ended else None)
+        db2.touch(W, NOW - 580_000)
+        lv2 = mk_live(f2, W)
+        lv2.refresh(NOW)
+        m2 = lv2.agents["main"]
+        want = source_opencode.price_step("gpt-5.6-terra", {"in": 1000, "out": 100, "rsn": 0, "cr": 0, "cw": 0, "provider": "p"})
+        case("live: responses before the window are only counted", m2.steps == 1 and m2.prefix_steps == 3 and m2.tok["in"] == 1000 and near(money(m2), want["cost"]))
+        case("live: the snapshot adds the counted steps", lv2.snapshot(NOW)["cards"][0]["steps"] == 4)
+        case("live: old sub-sessions are not followed; an unfinished one is reported as stale", list(lv2.agents) == ["main"] and lv2.stale_unreturned == 1)
+    finally:
+        db2.close()
+
+
 def cases():
     out = []
 
@@ -150,7 +349,7 @@ def cases():
         src = sources.get("opencode")
 
         # --- nothing there / not a database / no sessions
-        case("registered without a live view", src.live_supported is False and "opencode" in sources.ids())
+        case("registered with a live view", src.live_supported is True and "opencode" in sources.ids())
         case("missing data directory -> no files", opencode_scan.files(os.path.join(tmp, "absent")) == [])
         with open(os.path.join(root, "opencode.db"), "wb") as f:
             f.write(b"this is not an sqlite database " * 20)
@@ -251,6 +450,7 @@ def cases():
         db.assistant(A, T0 + 50, T0 + 60, "gpt-5.6-terra", "p", {"in": 1}, [{"type": "text", "text": "late"}], finish="stop")
         sa3 = opencode_scan.stat(pa)
         case("a row with an old time_updated still changes the size", sa3[0] > sa2[0] and sa3[1] == sa2[1])
+        live_cases(case, tmp)
     finally:
         if db is not None:
             db.close()

@@ -30,8 +30,8 @@ DONE_REASONS_OPEN = ("tool-calls", "tool_use", "unknown", None, "")
 STOP_NAMES = {"stop": "end_turn", "tool-calls": "tool_use"}
 
 
-def _tokens(d, parts):
-    """Token counts of an assistant message: its own tokens, else the sum of its step-finish parts."""
+def message_tokens(d, parts):
+    """Token counts of an assistant message: its own tokens, else the sum of its step-finish parts. parts: [{"data": part JSON}]."""
     def of(t):
         c = (t or {}).get("cache") or {}
         return {"in": int(t.get("input") or 0), "out": int(t.get("output") or 0), "rsn": int(t.get("reasoning") or 0),
@@ -45,6 +45,12 @@ def _tokens(d, parts):
             for k, v in (of(p["data"].get("tokens")) or {}).items():
                 acc[k] += v
     return acc
+
+
+def usage_of(tk, d, created):
+    """price_step usage of one assistant message: its token counts, provider and (UTC) day."""
+    return {"in": tk["in"], "out": tk["out"], "rsn": tk["rsn"], "cr": tk["cr"], "cw": tk["cw"], "provider": d.get("providerID") or "",
+            "day": time.strftime("%Y-%m-%d", time.gmtime(created / 1000)) if created else ""}
 
 
 def _user_event(m, is_root, first, caps):
@@ -134,7 +140,7 @@ def build_thread(aid, sess, msgs, ctx, is_root):
             elif t == "tool":
                 seen_tool = True
                 calls_raw.append(pd)
-        tk = _tokens(d, m["parts"])
+        tk = message_tokens(d, m["parts"])
         model = model_id(d.get("modelID") or d.get("model")) or model_id(sess.get("model"))
         if cur is None:
             open_turn({"k": "meta", "ts": created, "text": "（本轮没有可见的触发消息）"})
@@ -144,9 +150,7 @@ def build_thread(aid, sess, msgs, ctx, is_root):
                 event(_error_event(err, completed or created))
                 cur["_last"] = (completed, "error", err)
             continue
-        usage = {"in": tk["in"], "out": tk["out"], "rsn": tk["rsn"], "cr": tk["cr"], "cw": tk["cw"], "provider": d.get("providerID") or "",
-                 "day": time.strftime("%Y-%m-%d", time.gmtime(created / 1000)) if created else ""}
-        pr = source_opencode.price_step(model, usage)
+        pr = source_opencode.price_step(model, usage_of(tk, d, created))
         cwd_m = (d.get("path") or {}).get("cwd") or cwd
         calls = []
         for p in calls_raw:
@@ -207,8 +211,10 @@ def _error_event(err, ts):
     return {"k": "info", "ts": ts, "text": "模型调用出错（%s）%s" % (err.get("name") or "error", "：" + cut(msg, 400) if msg else "")}
 
 
-def _link_tasks(built, sessions):
-    """Match task calls to sub-sessions -> {child agent id: the task call}; sets call["agent"]."""
+def link_tasks(built, sessions):
+    """Match task calls to sub-sessions -> {child agent id: the task call}; sets call["agent"].
+
+    built: {agent id: {"tasks": [task call dicts]}}, sessions: {agent id: session row dict}. Shared with the live view."""
     owner = {s["id"]: aid for aid, s in sessions.items()}
     claimed = {}
     for aid, b in built.items():
@@ -230,7 +236,7 @@ def _link_tasks(built, sessions):
     return claimed
 
 
-def _describe(aid, sess, task_in):
+def describe(aid, sess, task_in):
     if aid == "main":
         return "主代理"
     kind = task_in.get("subagent_type") or sess.get("agent") or "agent"
@@ -257,7 +263,7 @@ def parse_opencode(root_id, tree, name="", out_chars=600, inp_chars=6000, progre
     tracker.label("整理步骤")
     root_sid = sessions["main"]["id"] if "main" in sessions else root_id
     built = {aid: build_thread(aid, sess, msgs, ctx, aid == "main") for aid, (sess, msgs) in loaded.items()}
-    claimed = _link_tasks(built, sessions)
+    claimed = link_tasks(built, sessions)
     by_sid = {s["id"]: aid for aid, s in sessions.items()}
     order = ["main"] + sorted((a for a in built if a != "main"), key=lambda a: sessions[a].get("time_created") or 0)
     depth, agents = {"main": 0}, []
@@ -267,7 +273,7 @@ def parse_opencode(root_id, tree, name="", out_chars=600, inp_chars=6000, progre
         depth[aid] = 0 if aid == "main" else depth.get(parent, 0) + 1
         call = claimed.get(aid)
         task_in = call.get("_in", {}) if call else {}
-        meta = {"description": _describe(aid, sess, task_in), "model": b["model"], "effort": "",
+        meta = {"description": describe(aid, sess, task_in), "model": b["model"], "effort": "",
                 "agentType": task_in.get("subagent_type") or ("" if aid == "main" else sess.get("agent") or ""), "spawnDepth": depth[aid]}
         a = finish_agent(aid, b["turns"], b["steps"], b["stamps"], b["briefing"] if aid != "main" else "", meta, ctx)
         a.update(tool="opencode", path="", parent=parent, cwd=b["cwd"])

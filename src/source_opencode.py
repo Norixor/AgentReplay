@@ -1,8 +1,9 @@
 """opencode source: sessions live in one SQLite database (<root>/opencode*.db), opened strictly read-only.
 
 Every top-level session is one virtual path "<db>#<session id>" (see opencode_scan.py); sub-sessions are folded into the
-row of their top-level session and into its tree. There is no live view: the database is another program's working
-store, and polling it is left out of this first version (live_supported = False).
+row of their top-level session and into its tree. The live view polls the same database read-only (opencode_tail.py): while
+the database and its -wal file are unchanged a poll is two stat() calls, otherwise one short query for the rows whose
+time_updated moved; sub-sessions are found through session.parent_id (live_opencode.py).
 
 Pricing: opencode talks to many providers, so a step is priced by its model name from the tables the tool already has
 (the "claude", "codex", "gemini" and then "other" sections of prices.json, in that order; "other" holds the models of every
@@ -72,7 +73,7 @@ class OpencodeSource(Source):
     dir_envs = ("AGENT_REPLAY_OPENCODE_DIR",)
     dir_default = os.path.join("~", ".local", "share", "opencode")
     dir_help = "opencode 数据目录（含 opencode*.db），默认 $XDG_DATA_HOME/opencode 或 ~/.local/share/opencode"
-    live_supported = False
+    live_supported = True
     page = {"fams": False, "notes": {
         "why": "推理摘要来自 reasoning 部分（部分模型不提供）；工具调用前的说明取自同一条消息里的文字",
         "mainSteps": "一条助手消息算一步（每次模型调用一条）",
@@ -110,6 +111,10 @@ class OpencodeSource(Source):
     def parse(self, root_id, tree, name, out_chars, inp_chars, progress=None, cache=None):
         from parse_opencode import parse_opencode
         return parse_opencode(root_id, tree, name, out_chars, inp_chars, progress)
+
+    def live(self, lv):
+        import live_opencode
+        return live_opencode.OpencodeLive(lv)
 
     def price_step(self, model, usage):
         return price_step(model, usage)
