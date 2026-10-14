@@ -80,7 +80,9 @@ Methods
                     session (incremental re-reads of a growing session); a source may ignore it.
   live(lv)          (* when live_supported) -> live feed for live.Live lv: an object with build(now_ms) (first read: create AgentStates in
                     lv.agents, "main" first, and follow files with lv.follow(path, state, feed, now)) and
-                    discover(now_ms) (start following files that appeared since). See live_claude.py, live_codex.py.
+                    discover(now_ms) (start following files that appeared since). lv.follow(..., tail=obj) takes a custom
+                    tail for non-JSONL data such as a SQLite store (surface: live.Tail docstring). See live_claude.py,
+                    live_codex.py.
   price_step(model, usage) *
                     -> priced step {"cost", "tok", "priced", "local", "fast"} (prices.result) of one model response,
                     rated from prices.json[id]; parse() and the live feed price every step with it.

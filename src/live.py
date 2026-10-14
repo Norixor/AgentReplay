@@ -51,7 +51,13 @@ def config():
 
 
 class Tail:
-    """Reads a growing JSONL file in complete lines; remembers the offset and any unfinished last line."""
+    """Reads a growing JSONL file in complete lines; remembers the offset and any unfinished last line.
+
+    Live.follow also accepts any other object with the same surface, for sources whose data is not a JSONL file (a SQLite
+    store polled for new rows): `start` (int, 0 when nothing before the window was skipped), `first(cutoff_ms)` -> the lines
+    of the opening window, `read_new()` -> lines that appeared since the last call, each a complete bytes line the feed's
+    feed(raw) understands (typically one JSON document per line). Both must be cheap and read-only.
+    """
 
     def __init__(self, path):
         self.path, self.pos, self.carry, self.start = path, 0, b"", 0
@@ -178,8 +184,9 @@ class Live:
             self.last_user = {"ts": ts, "text": text[:120]}
         self.events.append(e)
 
-    def follow(self, path, state, feed, now, window=True):
-        t = Tail(path)
+    def follow(self, path, state, feed, now, window=True, tail=None):
+        """Start following `path` (the key in self.tails); `tail` replaces the JSONL Tail (see Tail's docstring)."""
+        t = tail or Tail(path)
         self.tails[path] = (t, state, feed)
         lines = t.first(now - WINDOW_MS) if window else []
         for ln in lines:
