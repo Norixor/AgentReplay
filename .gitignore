@@ -6,3 +6,5 @@ __pycache__/
 .idea/
 .vscode/
 /.claude/
+# Local project ledger, kept out of the public repository
+/LEDGER.md
