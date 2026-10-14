@@ -87,6 +87,11 @@ def check_js():
         r = subprocess.run([node, t], capture_output=True, text=True, timeout=120)
         tail = (r.stdout + r.stderr).strip().splitlines()
         report(r.returncode == 0, "detail dialog unit test: %s" % (tail[-1] if tail else ("passed" if r.returncode == 0 else "failed")))
+    t = os.path.join(ROOT, "scripts", "test_live_open.mjs")  # fetch-then-open logic (live_open.js)
+    if os.path.exists(t):
+        r = subprocess.run([node, t], capture_output=True, text=True, timeout=120)
+        tail = (r.stdout + r.stderr).strip().splitlines()
+        report(r.returncode == 0, "live open unit test: %s" % (tail[-1] if tail else ("passed" if r.returncode == 0 else "failed")))
     t = os.path.join(ROOT, "scripts", "test_route.mjs")  # fork-route map model, layout and live merging (route_*.js)
     if os.path.exists(t):
         r = subprocess.run([node, t], capture_output=True, text=True, timeout=180)
