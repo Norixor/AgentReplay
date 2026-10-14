@@ -95,7 +95,7 @@ function liveCard(c) {
   return '<article class="lcard ls-' + (LSTATE[c.state] || ['', 'idle'])[1] + (c.alerts.length ? ' has-alert' : '') + '"><header><div class="lname">' + (c.id === 'main' ? '主代理' : name) +
     (c.id === 'main' ? ' <span class="dim">' + (known ? '<a href="#main">逐轮回看</a>' : '') + '</span>' : '') + '</div>' + stateBadge(c) + '</header>' +
     '<div class="lmeta">' + (c.model ? agentChip(c.model, fam, c.effort) : '') + ' <span>运行 <b class="tick" data-ms="' + (c.runMs || 0) + '">' + fmtDur(c.runMs || 0) + '</b></span> <span><b class="num">' +
-    c.steps + (c.stepsApprox ? '+' : '') + '</b> 步</span> <span class="dim" title="' + esc(tokTitle(c.tok, '读取窗口内（约最近 61 分钟）：' + moneyH(c.costWin))) + '">近 15 分钟 <b class="num">' + moneyH(c.cost15) + '</b> · ' + fmtTok(c.tok15) + ' token</span></div>' +
+    c.steps + (c.stepsApprox ? '+' : '') + '</b> 步</span> ' + (noUsage() ? '' : '<span class="dim" title="' + esc(tokTitle(c.tok, '读取窗口内（约最近 61 分钟）：' + moneyH(c.costWin))) + '">近 15 分钟 <b class="num">' + moneyH(c.cost15) + '</b> · ' + fmtTok(c.tok15) + ' token</span>') + '</div>' +
     cardNow(c) + recentList(c) + ctxBar(c) +
     (c.alerts.length ? '<div class="lalerts">' + c.alerts.map(a => '<span class="al al-' + esc(a.k) + '" title="' + esc(a.text) + '">⚠ ' + esc(a.text) + '</span>').join('') + '</div>' : '') + '</article>';
 }
@@ -107,6 +107,7 @@ function eventsList(d) {
 }
 
 function rateCard(d) {
+  if (noUsage()) return '';   // no token usage is recorded: there is no consumption to show (never "$0.00 / 0 token")
   const r = d.rate, mx = Math.max(1e-9, ...r.series), tmx = Math.max(1, ...r.tseries);
   const tile = (label, money, sub) => '<div class="stat"><div class="sl">' + label + '</div><div class="sv num">' + money + '</div><div class="ss">' + sub + '</div></div>';
   const unp = d.unpriced && d.unpriced.length ? '<p class="note">模型 ' + d.unpriced.map(esc).join('、') + ' 未定价：token 照常统计，金额未计入。</p>' : '';

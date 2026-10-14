@@ -61,7 +61,7 @@ function grCallInfo(c) {
 }
 
 function grStepsText(c) { return c.steps + (c.stepsApprox ? '+' : '') + ' 步 · ' + (c.spm == null ? '—' : c.spm) + ' 步/分'; }
-function grTokText(c) { return fmtMoney(c.costWin) + ' · ' + fmtTok(c.tokTotal || 0) + ' token'; }
+function grTokText(c) { return noUsage() ? '' : fmtMoney(c.costWin) + ' · ' + fmtTok(c.tokTotal || 0) + ' token'; }
 
 function grUpdateNode(el, n, ageMs) {
   if (n.kind === 'sum') {
@@ -95,7 +95,7 @@ function grUpdateNode(el, n, ageMs) {
   });
   const rt = r.run.querySelector('.tick');
   if (rt) { rt.dataset.ms = Math.max(0, c.runMs || 0); rt.textContent = fmtDur(Math.max(0, c.runMs || 0) + (ageMs || 0)); }
-  grSet(el, 'tok', grTokText(c) + '|' + ((c.tok && c.tok.cr) || 0), v => { r.tok.textContent = grTokText(c); r.tok.title = tokTitle(c.tok, '读取窗口内（约最近 61 分钟）的预估金额与用量'); });
+  grSet(el, 'tok', grTokText(c) + '|' + ((c.tok && c.tok.cr) || 0), v => { r.tok.hidden = noUsage(); r.tok.textContent = grTokText(c); r.tok.title = noUsage() ? '' : tokTitle(c.tok, '读取窗口内（约最近 61 分钟）的预估金额与用量'); });
   const ci = grCallInfo(c);
   grSet(el, 'tool', ci[0], v => { r.tool.textContent = v; r.tool.hidden = !v; });
   grSet(el, 'desc', ci[1] + '|' + ci[4], () => {

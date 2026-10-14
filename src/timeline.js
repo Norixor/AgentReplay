@@ -89,7 +89,7 @@ function renderTimeline(root) {
     '<div class="seg-ctl" role="group" aria-label="着色方式"><button data-mode="model" aria-pressed="' + (TLP.mode === 'model') + '">按模型</button><button data-mode="act" aria-pressed="' + (TLP.mode === 'act') + '">按活动</button></div>' +
     '<label class="chk"><input type="checkbox" id="tl-collapse"' + (TLP.collapse ? ' checked' : '') + '> 折叠空闲</label></div>' +
     '<div class="tlbar tlf"><label>模型 <select id="tl-model"><option value="">全部</option>' + famList().map(f => '<option value="' + esc(f) + '"' + (TLP.model === f ? ' selected' : '') + '>' + esc(f) + '</option>').join('') + '</select></label>' +
-    '<label class="tl-sortw">排序 <select id="tl-sort" class="tl-sort">' + RM.SORTS.map(o => '<option value="' + o[0] + '"' + (o[0] === TLP.sort ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>' +
+    '<label class="tl-sortw">排序 <select id="tl-sort" class="tl-sort">' + RM.sorts().map(o => '<option value="' + o[0] + '"' + (o[0] === TLP.sort ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>' +
     '<label class="chk"><input type="checkbox" id="tl-run"' + (TLP.running ? ' checked' : '') + '> 只看在跑的</label>' +
     '<label class="chk"><input type="checkbox" id="tl-min2"' + (TLP.min2 ? ' checked' : '') + '> 隐藏少于 2 分钟的代理</label><span class="dim" id="tl-count"></span></div>' +
     '<div class="legend" id="tl-legend"></div>' +

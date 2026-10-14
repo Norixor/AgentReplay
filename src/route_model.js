@@ -352,6 +352,8 @@ RM.nodesOf = function (a, items, gran, lookupName, opts) {
 /* ------------------------------------------------------------------ lane / row ordering (shared with the timeline) */
 RM.SORTS = [['dispatch', '派单顺序'], ['start', '开始时间'], ['dur', '耗时'], ['cost', '预估金额'], ['state', '状态'], ['model', '模型']];
 RM.SORT_KEYS = RM.SORTS.map(x => x[0]);
+/* The options offered: a source without token usage has no amount to sort by. */
+RM.sorts = () => RM.SORTS.filter(o => !(o[0] === 'cost' && noUsage()));
 RM.FAM_ORDER = ['fable', 'opus', 'sonnet', 'haiku'];
 RM.famOf = function (a) { return a.fam || (String(a.model || '').match(/haiku|sonnet|opus|fable/) || [])[0] || ''; };
 /* Orders `list` by `mode` (any mode except 'dispatch', which keeps the caller's own order). `info(x)` returns

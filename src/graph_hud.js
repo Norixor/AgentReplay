@@ -18,7 +18,7 @@ function grStat() {
   el._k = key;
   el.innerHTML = '<span class="lst ls-exec">执行中 <b>' + n.exec + '</b></span><span class="lst ls-think">思考中 <b>' + n.think + '</b></span>' +
     '<span class="lst ls-waiting">等子代理 <b>' + n.waiting + '</b></span><span class="lst ls-idle">空闲 <b>' + n.idle + '</b></span><span class="lst gr-sdone">已交回 <b>' + back.size + '</b></span>' +
-    '<span class="gr-rate" title="近 15 分钟的 token 用量（含缓存读取）除以 15；金额按最近 15 分钟 ×4 折合每小时，按官方标价估算">近 15 分钟 <b class="num">' + fmtTok(rate) + '</b> token/分钟 · <b class="num">' + moneyH(perHour) + '</b>/小时</span>';
+    (noUsage() ? '' : '<span class="gr-rate" title="近 15 分钟的 token 用量（含缓存读取）除以 15；金额按最近 15 分钟 ×4 折合每小时，按官方标价估算">近 15 分钟 <b class="num">' + fmtTok(rate) + '</b> token/分钟 · <b class="num">' + moneyH(perHour) + '</b>/小时</span>');
 }
 
 /* ---------------------------------------------------------------- mini-map */

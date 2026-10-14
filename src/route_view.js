@@ -74,7 +74,7 @@ function renderRoute(container, opts) {
   container.innerHTML =
     '<div class="rt-bar"><span class="rt-seg" role="group" aria-label="详略">' +
     RV_GRANS.map(g => '<button type="button" data-g="' + g[0] + '" class="' + (g[0] === V.gran ? 'on' : '') + '" aria-pressed="' + (g[0] === V.gran) + '" title="' + g[2] + '">' + g[1] + '</button>').join('') + '</span>' +
-    '<label class="rt-chk rt-sortw">排序 <select id="rt-sort" class="rt-sort">' + RM.SORTS.map(o => '<option value="' + o[0] + '"' + (o[0] === V.sort ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>' +
+    '<label class="rt-chk rt-sortw">排序 <select id="rt-sort" class="rt-sort">' + RM.sorts().map(o => '<option value="' + o[0] + '"' + (o[0] === V.sort ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>' +
     '<label class="rt-chk"><input type="checkbox" id="rt-run"> 只看在跑的泳道</label>' +
     '<label class="rt-chk" title="所有代理都没有活动、且超过 15 分钟的时段压成一条固定宽度的空闲带"><input type="checkbox" id="rt-idle" checked> 折叠空闲</label>' +
     '<button type="button" id="rt-fold" class="rt-foldall" title="展开或折叠所有子代理泳道（泳道很多时，已交回的默认折叠成一行）">展开全部泳道</button>' +
