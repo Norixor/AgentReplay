@@ -624,7 +624,7 @@ function sbBuild(c, s, root) {
   }
   const t = sbTool(c, root);
   if (t) return fin(t.kind, t.action, t.target, '', t.where);
-  const shellish = /^(Bash|bash|exec_command|shell_command|shell|run_terminal_cmd|run_shell_command|run_in_terminal)$/.test(c.name || '') ||
+  const shellish = /^(Bash|bash|exec_command|shell_command|shell|run_terminal_cmd|run_terminal_command|run_terminal_command_v2|run_shell_command|run_in_terminal)$/.test(c.name || '') ||
     /(^|\+)(exec_command|shell_command)(\+|$)/.test(c.name || '') || /^mcp__terminal__run_in_terminal$/.test(c.name || '');
   const cmd = shellish ? sbCommand(c) : '';
   const fallbackKind = SB_CAT_KIND[c.cat] || (c.cat === 'other' ? 'other' : 'tool');

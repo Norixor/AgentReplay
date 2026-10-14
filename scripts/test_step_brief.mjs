@@ -118,4 +118,8 @@ assert.equal(brief({name: 'Bash', sum: 'false', st: 'err'}).result.state, 'err',
 assert.doesNotThrow(() => { brief({name: 'mcp__x__y', st: 'pend'}); brief({name: '', sum: '', st: 'ok'}); brief({name: 'Bash', st: 'ok'}); brief(null, {says: ''}); }, 'sparse calls do not throw');
 n += 7;
 
+// ---- Cursor names its shell tools run_terminal_command(_v2) / run_terminal_cmd
+['run_terminal_command_v2', 'run_terminal_command', 'run_terminal_cmd'].forEach(name =>
+  check('cursor shell tool ' + name, {name, cat: 'other', st: 'ok', sum: 'git status --short', inp: '', res: ''}, {kind: 'git', action: /^git status/}));
+
 console.log('step brief unit test passed (' + n + ' checks)');
