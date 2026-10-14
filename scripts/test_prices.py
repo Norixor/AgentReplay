@@ -35,6 +35,16 @@ def with_other(section, fn):
             table["other"] = saved
 
 
+def with_model(section, name, entry, fn):
+    """Run fn with one synthetic model entry added to a real price section."""
+    models = prices.load()[section]["models"]
+    models[name] = entry
+    try:
+        return fn()
+    finally:
+        models.pop(name, None)
+
+
 def cases():
     out = []
 
@@ -88,6 +98,16 @@ def cases():
     case("codex: long context cache write keeps its premium (rate scaled by long / base input)", near(r["cost"], (290000 * 4 + 10000 * 5) / 1e6))
     r = source_codex.price_step("gpt-6-luna", {"in": 300000, "cached": 0, "cw": 0, "out": 0})
     case("codex: a model without long-context rates keeps the base rates", near(r["cost"], 300000 * 0.1 / 1e6))
+    # a pro-style model lists no cached-input price (null): cached tokens bill as uncached input instead of failing
+    r = with_model("codex", "tmp-pro", {"input": 10, "cached_input": None, "cache_write": None, "output": 40},
+                   lambda: source_codex.price_step("tmp-pro", {"in": 1000, "cached": 400, "cw": 0, "out": 10}))
+    case("codex: null cached_input bills cached tokens at the input rate", near(r["cost"], (600 * 10 + 400 * 10 + 10 * 40) / 1e6))
+    # a long tier that lists its own cached input and cache write uses them instead of the scaled assumptions
+    lc = {"over_input_tokens": 1000, "input": 4, "cached_input": 0.2, "cache_write": 5, "output": 15}
+    r = with_model("codex", "tmp-long", {"input": 2, "cached_input": 0.1, "cache_write": 2.5, "output": 10, "long_context": lc},
+                   lambda: source_codex.price_step("tmp-long", {"in": 3000, "cached": 1000, "cw": 500, "out": 100}))
+    case("codex: the long tier's own cached input and cache write rates win over the assumptions",
+         near(r["cost"], (1500 * 4 + 500 * 5 + 1000 * 0.2 + 100 * 15) / 1e6))
     for m in ("gpt-5.3-codex-spark", "gpt-4.5", ""):
         r = source_codex.price_step(m, {"in": 100, "cached": 0, "cw": 0, "out": 10})
         case("codex: unpriced model %r has no amount, tokens counted" % m, r["cost"] is None and not r["priced"] and r["tok"]["out"] == 10)

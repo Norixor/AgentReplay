@@ -123,13 +123,14 @@ def price_step(model, last):
         return prices.result(None, tok, False)
     inp = last.get("in", 0) or 0
     rin, rout = p["input"], p["output"]
-    rcached = p["cached_input"]
+    rcached = p["cached_input"] if p.get("cached_input") is not None else rin  # null: no cache discount listed (pro models)
     rcw = p["cache_write"] if p.get("cache_write") is not None else rin
     lc = p.get("long_context")
     if lc and inp > lc["over_input_tokens"]:
-        rcw = (rcw * lc["input"] / rin) if p.get("cache_write") is not None else lc["input"]
+        # cached_input / cache_write of the long tier are used when the page lists them, else the scaled assumptions below
+        rcw = lc["cache_write"] if lc.get("cache_write") is not None else (rcw * lc["input"] / rin) if p.get("cache_write") is not None else lc["input"]
+        rcached = lc["cached_input"] if lc.get("cached_input") is not None else (rcached if p.get("cached_input") is None else lc["input"] * CACHED_LONG_RATIO)
         rin, rout = lc["input"], lc["output"]
-        rcached = rin * CACHED_LONG_RATIO
     cost = (tok["in"] * rin + tok["cw5"] * rcw + tok["cr"] * rcached + tok["out"] * rout) / 1e6
     return prices.result(cost, tok, True)
 
