@@ -143,7 +143,9 @@ def cases():
         # data directory option: generated from the source's declaration, resolved by config
         ap = argparse.ArgumentParser()
         config.add_args(ap)
-        args = ap.parse_args(["--fake-dir", fake_root, "--claude-dir", os.path.join(tmp, "none-c"), "--codex-dir", os.path.join(tmp, "none-x")])
+        # every built-in source gets an empty data directory, so only the test sources are listed
+        empty = [a for s in sources.all() if s.id not in ("fake", "mem") for a in (s.dir_flag, os.path.join(tmp, "none-" + s.id))]
+        args = ap.parse_args(["--fake-dir", fake_root] + empty)
         config.apply_args(args)
         config.configure(dict(config.DIRS), home=os.path.join(tmp, "home"))
         case("--fake-dir sets the fake source's data root", config.source_dir("fake") == fake_root)

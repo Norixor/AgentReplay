@@ -133,6 +133,17 @@ def check_prices():
         report(True, "pricing unit tests passed (%d cases)" % len(cases))
 
 
+def check_gemini():
+    """Gemini CLI source tests on synthetic sessions (scripts/test_gemini.py)."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import test_gemini
+    cases, bad = test_gemini.run()
+    for name in bad:
+        report(False, "gemini: " + name)
+    if not bad:
+        report(True, "Gemini CLI source tests passed (%d cases)" % len(cases))
+
+
 def check_sources():
     """Source registry extensibility test with a fake source (scripts/test_sources.py)."""
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -231,7 +242,7 @@ def check_render(tmp):
     from render import build_html, load_data
     config.configure(home=tmp)
     info = demo.generate(os.path.join(tmp, "demo"))
-    config.configure({"claude": info["claude_dir"], "codex": info["codex_dir"]}, home=info["base"])
+    config.configure(demo.dirs(info), home=info["base"])
     recs, _ = index.build_index()
     rows = index.list_sessions(recs)
     report(len(rows) == 3, "demo index lists 3 sessions (got %d)" % len(rows))
@@ -441,6 +452,7 @@ def main():
     check_python()
     check_js()
     check_prices()
+    check_gemini()
     check_sources()
     tmp = tempfile.mkdtemp(prefix="agent-replay-check-")
     try:

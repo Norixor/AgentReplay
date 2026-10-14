@@ -1,9 +1,13 @@
 {
   "_about": "Estimated API list prices in USD per 1M tokens. Subscription plans (Claude Max, ChatGPT plans) are not billed per token, so amounts are for comparison and locating cost only. To update: edit the numbers below, set read_date and keep the sources.",
   "read_date": "2026-10-13",
+  "read_dates": {
+    "gemini": "2026-10-13"
+  },
   "sources": {
     "claude": "https://platform.claude.com/docs/en/about-claude/pricing",
-    "codex": "https://developers.openai.com/api/docs/pricing"
+    "codex": "https://developers.openai.com/api/docs/pricing",
+    "gemini": "https://ai.google.dev/gemini-api/docs/pricing"
   },
   "claude": {
     "_rules": [
@@ -182,6 +186,110 @@
       "gpt-5.3-codex-spark": "Not listed on the official pricing page.",
       "gpt-4.5": "Not listed on the official pricing page.",
       "*local*": "Local or open-weight models (for example names containing a slash such as org/model, or served through Ollama) cost nothing per token."
+    }
+  },
+  "gemini": {
+    "_rules": [
+      "usage.tokens = {input, output, cached, thoughts, tool}: input INCLUDES cached (total = input + output + thoughts + tool); uncached input = input - cached, billed at 'input'; cached is billed at 'cached_input'.",
+      "thoughts are billed at the output rate (the page labels output as including thinking tokens) and shown as part of output.",
+      "tool (tool-use prompt tokens) are billed as uncached input; the pricing page does not list them separately (assumption). Search grounding, explicit-cache storage and batch/flex/priority tiers are not detected; Standard tier text prices are used.",
+      "Models with per-modality prices (audio) are priced at the text/image/video rate: the session record does not split tokens by modality.",
+      "long_context: when the prompt (input + tool tokens) is above over_prompt_tokens the long-prompt rates apply to the whole request.",
+      "changes: dated rate changes announced on the pricing page; the latest entry whose 'from' date (UTC, from the message timestamp) has been reached replaces the base rates.",
+      "Models not in this table are unpriced (amount unknown, tokens still counted)."
+    ],
+    "models": {
+      "gemini-4-argon": {
+        "input": 2,
+        "cached_input": 0.1,
+        "output": 10,
+        "changes": [
+          {
+            "from": "2026-12-01",
+            "input": 4,
+            "cached_input": 0.2,
+            "output": 20
+          }
+        ]
+      },
+      "gemini-3.8-flash": {
+        "input": 0.75,
+        "cached_input": 0.075,
+        "output": 3.75,
+        "changes": [
+          {
+            "from": "2027-01-01",
+            "input": 1.5,
+            "cached_input": 0.15,
+            "output": 7.5
+          }
+        ]
+      },
+      "gemini-3.6-flash": {
+        "input": 0.75,
+        "cached_input": 0.075,
+        "output": 3.75,
+        "changes": [
+          {
+            "from": "2027-01-01",
+            "input": 1.5,
+            "cached_input": 0.15,
+            "output": 7.5
+          }
+        ]
+      },
+      "gemini-3.5-flash-lite": {
+        "input": 0.3,
+        "cached_input": 0.03,
+        "output": 2.5
+      },
+      "gemini-3.1-flash-lite": {
+        "input": 0.25,
+        "cached_input": 0.025,
+        "output": 1.5
+      },
+      "gemini-3.1-pro-preview": {
+        "input": 2,
+        "cached_input": 0.2,
+        "output": 12,
+        "long_context": {
+          "over_prompt_tokens": 200000,
+          "input": 4,
+          "cached_input": 0.4,
+          "output": 18
+        }
+      },
+      "gemini-3-flash-preview": {
+        "input": 0.5,
+        "cached_input": 0.05,
+        "output": 3
+      },
+      "gemini-2.5-pro": {
+        "input": 1.25,
+        "cached_input": 0.125,
+        "output": 10,
+        "long_context": {
+          "over_prompt_tokens": 200000,
+          "input": 2.5,
+          "cached_input": 0.25,
+          "output": 15
+        }
+      },
+      "gemini-2.5-flash": {
+        "input": 0.3,
+        "cached_input": 0.03,
+        "output": 2.5
+      },
+      "gemini-2.5-flash-lite": {
+        "input": 0.1,
+        "cached_input": 0.01,
+        "output": 0.4
+      }
+    },
+    "match": "Strip a trailing date suffix such as -20251001 before lookup; names must otherwise match the model code on the pricing page exactly.",
+    "unpriced": {
+      "gemini-3-pro": "Not listed as a text model on the official pricing page.",
+      "gemma-*": "Gemma models have no paid Gemini API price (listed as not available)."
     }
   }
 }

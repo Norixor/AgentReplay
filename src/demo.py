@@ -28,10 +28,19 @@ def generate(base=None, now_ms=None):
     return {"base": base, "claude_dir": claude_dir, "codex_dir": codex_dir, "finished": finished, "codex": codex, "live": live}
 
 
+def dirs(info):
+    """Data directories while the demo runs: its own Claude Code and Codex data, and an empty directory for every other
+    source, so that real sessions never show up in the demo."""
+    import sources
+    out = {s.id: os.path.join(info["base"], "empty-" + s.id) for s in sources.all()}
+    out.update(claude=info["claude_dir"], codex=info["codex_dir"])
+    return out
+
+
 def run(port=8791, open_browser=True):
     import server
     info = generate()
-    config.configure({"claude": info["claude_dir"], "codex": info["codex_dir"]}, home=info["base"])
+    config.configure(dirs(info), home=info["base"])
     feeder = demo_live.LiveFeeder(info["live"])
     feeder.start()
     print("演示模式：以下都是合成的示例会话（虚构的电商项目），数据在 %s，每次启动都会重新生成。" % info["base"], flush=True)

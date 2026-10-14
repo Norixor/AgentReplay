@@ -33,8 +33,9 @@ const TS_WAIT_TASK = /(^|\+)(TaskOutput|AgentOutput|wait_agent|wait_threads)(\+|
 const TS_MACHINE = {notify: 1, handback: 1, agentmsg: 1, silent: 1};                    // wake-ups that are not a user message
 const TS_END_SLACK = 5000;  // a Codex task_complete this close to the last activity belongs to the waiting window
 
-/* A foreground Claude dispatch blocks the parent until the child reports; Codex spawn_agent returns at once. */
-function tsBlockingDispatch(c) { return !!c.disp && !c.bg && (c.name === 'Agent' || c.name === 'Task'); }
+/* A foreground Claude dispatch blocks the parent until the child reports; Codex spawn_agent returns at once. A parser marks
+ * a dispatch call that blocks until the child is done with disp.block (Gemini invoke_agent). */
+function tsBlockingDispatch(c) { return !!c.disp && !c.bg && (c.name === 'Agent' || c.name === 'Task' || !!c.disp.block); }
 function tsCallCat(c, hasKids) {
   if (tsBlockingDispatch(c)) return 'subwait';
   if (hasKids && TS_WAIT_TASK.test(c.name || '')) return 'subwait';

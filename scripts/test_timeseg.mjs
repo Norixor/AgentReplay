@@ -94,6 +94,16 @@ function check(name, a, opts) {
   assert.equal(r.by.subwait, 0);
 }
 
+// 3b. A parser can mark a blocking dispatch under any tool name (Gemini invoke_agent): the parent waits for the child.
+{
+  const kids = { g1: { id: 'g1', start: 1100, end: 2000 } };
+  const inv = call(1000, 1000, 'agent', { name: 'invoke_agent', disp: { bg: false, block: true }, agent: 'g1' });
+  const a = agent('gm', 1000, 2000, [turn({ k: 'human', ts: 1000 }, [step(1000, [inv])])]);
+  const { by } = check('blocking dispatch', a, { lookup: id => kids[id] });
+  assert.equal(by.subwait, 1000);
+  assert.equal(by.agent, 0);
+}
+
 // 4. Codex style: the turn ends with an explicit marker; a machine wake-up while a child runs is waiting for it.
 {
   const kids = { k1: { id: 'k1', start: 2200, end: 9000 } };

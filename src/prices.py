@@ -1,7 +1,7 @@
 """Price table, token vectors and display rules shared by every source.
 
 prices.json holds the official list prices (USD per million tokens) in one section per source id, its source links, the
-read date and the rules that are applied. A step is priced from its own token usage by its source's price_step
+read date (read_date, overridden per source by read_dates.<id>) and the rules that are applied. A step is priced from its own token usage by its source's price_step
 (source_claude.py, source_codex.py); every aggregate in the tool sums those per-step results.
 
 A priced step is {"cost": float|None, "tok": {...}, "priced": bool, "local": bool, "fast": bool}:
@@ -36,7 +36,7 @@ def meta(tool):
     """Small description of the price table for the page: read date, source link and the rules applied."""
     d = load()
     t = d.get(tool) or {}
-    return {"readDate": d.get("read_date", ""), "source": (d.get("sources") or {}).get(tool, ""), "rules": list(t.get("_rules") or []),
+    return {"readDate": (d.get("read_dates") or {}).get(tool) or d.get("read_date", ""), "source": (d.get("sources") or {}).get(tool, ""), "rules": list(t.get("_rules") or []),
             "models": sorted((t.get("models") or {}).keys())}
 
 
