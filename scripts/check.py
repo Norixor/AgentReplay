@@ -92,6 +92,7 @@ def check_js():
         r = subprocess.run([node, t], capture_output=True, text=True, timeout=120)
         tail = (r.stdout + r.stderr).strip().splitlines()
         report(r.returncode == 0, "live open unit test: %s" % (tail[-1] if tail else ("passed" if r.returncode == 0 else "failed")))
+    for t in [os.path.join(ROOT, "scripts", "test_step_brief.mjs")]: r = subprocess.run([node, t], capture_output=True, text=True, timeout=120); tail = (r.stdout + r.stderr).strip().splitlines(); report(r.returncode == 0, "step brief unit test: %s" % (tail[-1] if tail else "no output"))  # call briefs (step_brief.js)
     t = os.path.join(ROOT, "scripts", "test_route.mjs")  # fork-route map model, layout and live merging (route_*.js)
     if os.path.exists(t):
         r = subprocess.run([node, t], capture_output=True, text=True, timeout=180)

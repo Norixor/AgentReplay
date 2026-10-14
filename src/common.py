@@ -77,10 +77,36 @@ def classify_bash(cmd):
         return "git"
     if _WRITE.search(c):
         return "write"
-    real = [f for f in firsts if f != "cd"]
-    if real and all(f in _READ for f in real):
+    script = _inline_script(cmd or "")
+    if script == "write":
+        return "write"
+    real = [f for f in firsts if f != "cd" and not (script and _INTERP.match(f))]
+    if (real or script) and all(f in _READ for f in real):
         return "read"
     return "other"
+
+
+# `python3 - <<'EOF' ... EOF` (also node / php / ruby / perl): the heredoc is the program. Its body decides between changing files
+# and only reading / printing; the step brief (step_brief.js) uses the same signals for its wording.
+_INTERP = re.compile(r"^(python[\d.]*|node|php[\d.]*|ruby|perl)$")
+_SCRIPT_HD = re.compile(r"(?:^|[\s;&|(])(?:python[\d.]*|node|php[\d.]*|ruby|perl)\b[^\n]*?<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\b|\Z)", re.S)
+_SCRIPT_WRITES = re.compile(
+    r"open\s*\([^)\n]*,\s*(?:mode\s*=\s*)?['\"][wax]b?\+?['\"]|\.write_text\s*\(|\.write_bytes\s*\(|(?<!stdout)(?<!stderr)\.write\s*\(|"
+    r"writeFileSync|appendFileSync|fs\.writeFile|file_put_contents|json\.dump\s*\(|shutil\.(copy|move|rmtree)|os\.(remove|rename|replace|unlink|makedirs)|"
+    r"\.unlink\s*\(|fopen\([^)]*['\"][wa]")
+
+
+def _inline_script(cmd):
+    """'write' | 'read' for a command that feeds an interpreter a heredoc script, '' when there is none."""
+    bodies = [m.group(3) for m in _SCRIPT_HD.finditer(cmd)]
+    if not bodies:
+        return ""
+    if any(_SCRIPT_WRITES.search(b) for b in bodies):
+        return "write"
+    return "read" if any(_SCRIPT_READS.search(b) for b in bodies) else ""
+
+
+_SCRIPT_READS = re.compile(r"\bopen\s*\(|\.read_text\s*\(|json\.load\s*\(|\bglob\.|os\.(listdir|walk|scandir)|file_get_contents|readFileSync|readdirSync|\bfile\(")
 
 
 _SEG_SPLIT = re.compile(r"&&|\|\||;|\n|\|")

@@ -96,19 +96,34 @@ function durHTML(c) {
   return '<span class="' + (c.long ? 'long' : '') + '">' + (c.dur < 500 ? '<1 秒' : fmtDur(c.dur)) + '</span>';
 }
 
+/* Pieces of a call brief (step_brief.js), shared by the list rows and the detail dialog. */
+function briefKindHTML(b, c) {
+  const tip = c ? '工具 ' + c.name + ' · 统计类别 ' + (CAT_LABEL[c.cat] || c.cat) : '模型回复，没有工具调用';
+  return '<span class="sb-kind sb-c-' + b.color + '" title="' + esc(tip) + '"><i aria-hidden="true"></i>' + esc(b.kindLabel) + '</span>' +
+    (c ? '<small class="sb-tool">' + esc(clip(c.name.replace(/^mcp__/, ''), 28)) + '</small>' : '');
+}
+function briefActionHTML(b) {
+  return '<span class="sb-act">' + esc(b.action) + (b.where ? ' <span class="sb-where" title="工作目录（worktree / 远程主机）">' + esc(b.where) + '</span>' : '') + '</span>' +
+    (b.more ? '<small class="sb-more">' + esc(b.more) + '</small>' : '');
+}
+function briefResultHTML(b, c) {
+  const r = b.result;
+  if (!c || !r.line) return statusHTML(c);
+  return (c.bg ? statusHTML(c) : '') + '<span class="sb-res sb-' + r.state + '">' + esc(r.line) + '</span>';
+}
+
 function rowHTML(s, c, ci, first, a, idx) {
-  const cat = c ? c.cat : 'other';
-  const tool = c ? c.name : '回复';
-  const sum = c ? c.sum : clip(firstLine(s.says), 200);
-  return '<div class="rw' + (first ? '' : ' cont') + '" data-i="' + idx + '" data-sn="' + s.n + '"><div class="row st-' + (c ? c.st : 'ok') + (c && (c.long || c.bgLong) ? ' is-long' : '') + '">' +
+  const b = stepBrief(c, s);
+  const raw = c ? c.inp || c.sum : s.says;
+  return '<div class="rw' + (first ? '' : ' cont') + '" data-i="' + idx + '" data-sn="' + s.n + '"><div class="row sb-grid st-' + (c ? c.st : 'ok') + (c && (c.long || c.bgLong) ? ' is-long' : '') + '">' +
     '<div class="c-time">' + (first ? '<b>' + fmtClock(s.ts) + '</b><small>' + (fmtDay(s.ts) === DAY0 ? '' : fmtDay(s.ts) + ' · ') + '#' + s.n + (s.gap > 1500 ? ' · +' + fmtDur(s.gap) : '') + '</small>' : '<small>↳ 并行</small>') + '</div>' +
-    '<div class="c-tool"><span class="tool cat-' + cat + '">' + esc(tool) + '</span></div>' +
+    '<div class="c-tool">' + briefKindHTML(b, c) + '</div>' +
     '<div class="c-why">' + whyHTML(s, c, first, a) + '</div>' +
-    '<div class="c-cmd" title="' + esc(clip(c && c.inp ? c.inp : sum, 1200)) + '">' + esc(sum) + '</div>' +
+    '<div class="c-cmd sb-cmd" title="' + esc(clip(raw || '', 1200)) + '">' + briefActionHTML(b) + '</div>' +
     '<div class="c-dur">' + durHTML(c) + '</div>' +
     '<div class="c-cost">' + (first ? stepCostHTML(s, {unit: false}) : '') + '</div>' +
     '<div class="c-ctx">' + (first ? ctxText(s.ctx) : '') + '</div>' +
-    '<div class="c-st">' + statusHTML(c) + '</div></div></div>';
+    '<div class="c-st sb-st">' + briefResultHTML(b, c) + '</div></div></div>';
 }
 
 function pre(label, text, cls, copy) {
@@ -210,15 +225,15 @@ function renderSteps(a, root, jump) {
   root.innerHTML = '<div class="fbar"><label><input type="checkbox" data-f="disp"> 只看派单</label><label><input type="checkbox" data-f="hook"> 只看被拦截</label>' +
     '<label><input type="checkbox" data-f="long"> 只看超过 60 秒</label><label><input type="checkbox" data-f="user"> 只看用户消息</label>' +
     '<input type="search" class="q" placeholder="搜索原因、命令、结果…" aria-label="搜索步骤"><span class="fcount dim"></span></div>' +
-    '<div class="colhead"><div>时间</div><div>工具</div><div>原因（触发 / 说明 / 描述 / 派单）</div><div>命令或输入</div><div class="r">耗时</div><div class="r">预估金额</div><div class="r">上下文</div><div class="r">结果</div></div>' +
+    '<div class="colhead sb-grid"><div>时间</div><div>类别</div><div>原因（触发 / 说明 / 描述 / 派单）</div><div>动作（悬停看原始命令）</div><div class="r">耗时</div><div class="r">预估金额</div><div class="r">上下文</div><div>结果</div></div>' +
     '<div class="steps">' + (html || emptyState('没有记录到步骤', '这个代理还没有产生模型响应。')) + '</div><div class="empty" id="noresult" hidden><b>没有符合条件的步骤</b><span>换个关键词，或取消上面的筛选。</span></div>';
   const f = {disp: false, hook: false, long: false, user: false, q: ''};
   let rows = root.querySelectorAll('.rw'), turns = root.querySelectorAll('.turn');
   const cnt = root.querySelector('.fcount');
   function hay(m) {
     if (m.hay == null) {
-      const c = m.c, s = m.s;
-      m.hay = [m.t.trig.text, s.said, s.says, c && c.desc, c && c.sum, c && c.inp, c && c.res, c && c.hook, c && c.disp && c.disp.reason]
+      const c = m.c, s = m.s, b = stepBrief(c, s);
+      m.hay = [m.t.trig.text, s.said, s.says, c && c.desc, c && c.sum, c && c.inp, c && c.res, c && c.hook, c && c.disp && c.disp.reason, b.kindLabel, b.action, b.more, b.where, b.result.line]
         .filter(Boolean).join('\n').toLowerCase();
     }
     return m.hay;

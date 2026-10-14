@@ -38,9 +38,19 @@ function mdStepBody(a, s) {
   return h.join('');
 }
 
+/* What the step did, one line per call: category, action on its object, result line (step_brief.js). */
+const MD_BRIEF_MAX = 8;
+function mdStepBrief(s) {
+  const calls = s.calls.length ? s.calls : [null];
+  return '<div class="sb-sum" aria-label="这一步做了什么">' + calls.slice(0, MD_BRIEF_MAX).map(c => {
+    const b = stepBrief(c, s);
+    return '<div class="sb-line"><div class="sb-k">' + briefKindHTML(b, c) + '</div><div class="sb-a">' + briefActionHTML(b) + '</div><div class="sb-r">' + briefResultHTML(b, c) + '</div></div>';
+  }).join('') + (calls.length > MD_BRIEF_MAX ? '<div class="dim">另有 ' + (calls.length - MD_BRIEF_MAX) + ' 个调用，见下文</div>' : '') + '</div>';
+}
+
 function mdStepHTML(r) {
   return '<p class="dim md-in">' + (r.a.id === 'main' ? '主代理' : '子代理 ' + mdAgentRef(r.a.id)) + ' · 第 ' + (r.ti + 1) + ' 轮 · ' + esc(EV_LABEL[r.t.trig.k] || r.t.trig.k) + '触发</p>' +
-    mdStepFacts(r.s) + '<div class="md-step">' + mdStepBody(r.a, r.s) + '</div>';
+    mdStepBrief(r.s) + mdStepFacts(r.s) + '<div class="md-step">' + mdStepBody(r.a, r.s) + '</div>';
 }
 
 /* ---- a list of steps, each expandable in place (the body is filled when it is opened, see modal.js) */
