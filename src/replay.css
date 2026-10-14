@@ -134,6 +134,5 @@ details.lt summary{cursor:pointer;color:var(--ink)}details.lt summary em{color:v
 /* multi-tool additions */
 .back{color:var(--accent);padding:10px 0;white-space:nowrap}
 .src{white-space:nowrap;display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;line-height:19px;color:#fff;background:var(--c-other);vertical-align:1px}
-.src-claude{background:var(--opus)}.src-codex{background:var(--c-test)}
 .w-rsum b{background:var(--c-read);color:#fff}
 code{background:var(--code);padding:0 4px;border-radius:3px;font-size:12px}

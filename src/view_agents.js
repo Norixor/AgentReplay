@@ -65,12 +65,12 @@ function renderAgent(root, id, jump) {
   if (id === 'main') h += timeCatMainCard();
   h += '<div class="card" id="agcat">' + agentCatHTML(a) + '</div>';
   if (id !== 'main') {
-    h += '<section class="card"><h3>简报 ' + (a.briefing ? copyBtn(a.briefing) : '') + '</h3>' + (a.reason ? clampBlock(a.reason, 'reasonline', 2) : TOOL === 'codex' ? '' : '<p class="dim">简报里没有以「选档理由：」开头的行。</p>') +
+    h += '<section class="card"><h3>简报 ' + (a.briefing ? copyBtn(a.briefing) : '') + '</h3>' + (a.reason ? clampBlock(a.reason, 'reasonline', 2) : SRC_NOTES.reasonMissing ? '<p class="dim">' + esc(SRC_NOTES.reasonMissing) + '</p>' : '') +
       clampBlock(a.briefing, 'brief', 4) + '</section>';
   }
   h += '<h2 class="sh">逐步回看 <span class="vseg" id="vseg" role="group" aria-label="显示方式"></span></h2><div id="lsbar" class="lsbar"></div><div id="stepsroot"></div><div id="termroot" hidden></div>';
   if (id !== 'main') {
-    const src = {handback: '来自 SubagentHandback 调用', lasttext: TOOL === 'codex' ? '取该线程最后一条不带工具调用的回复' : '没有 SubagentHandback，取最后一段文字', lastmsg: '取该线程最后一轮的 last_agent_message'}[a.reportSrc] || '没有找到交回报告';
+    const src = {handback: '来自 SubagentHandback 调用', lasttext: SRC_NOTES.lastText || '', lastmsg: '取该线程最后一轮的 last_agent_message'}[a.reportSrc] || '没有找到交回报告';
     h += '<section class="card"><h3>交回报告 <span class="dim">（' + src + '）</span> ' + (a.report ? copyBtn(a.report) : '') + '</h3>' + (a.report ? clampBlock(a.report, 'report', 6) : '<p class="dim">无</p>') + '</section>';
   }
   if (a.children.length) {

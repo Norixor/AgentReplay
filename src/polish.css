@@ -44,7 +44,7 @@ input[type=search]:focus,select:focus{outline:2px solid var(--focus);outline-off
 #nav a{border-radius:6px 6px 0 0}#nav a:focus-visible{outline-offset:-2px}
 /* colour chips: dark ink on the lighter dark-theme colours, white ink on the darker light-theme colours */
 .badge{color:var(--dim)}
-.fam{color:var(--chip-ink)}.src-claude{background:var(--opus-bg)}.src,.tool,.b-human,.b-followup,.b-handback,.b-notify,.b-goal,.b-goalstatus,.b-xsession,.b-compact,.b-stophook,.b-info,.st-active,.w-trig b,.w-said b,.w-desc b,.w-disp b,.w-hook b,.w-rsum b{color:var(--chip-ink)}
+.fam{color:var(--chip-ink)}.src,.tool,.b-human,.b-followup,.b-handback,.b-notify,.b-goal,.b-goalstatus,.b-xsession,.b-compact,.b-stophook,.b-info,.st-active,.w-trig b,.w-said b,.w-desc b,.w-disp b,.w-hook b,.w-rsum b{color:var(--chip-ink)}
 .tool.cat-read{background:var(--c-read)}
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .tool{background:#5b6a88}:root:not([data-theme="dark"]) .tool.cat-test{background:#237a4c}:root:not([data-theme="dark"]) .tool.cat-write{background:#b04479}:root:not([data-theme="dark"]) .tool.cat-git{background:#6a4fb8}:root:not([data-theme="dark"]) .tool.cat-wait{background:#9a6a0f}:root:not([data-theme="dark"]) .tool.cat-agent{background:#1f55d4}}
 /* cards and tables share one look */

@@ -141,6 +141,13 @@ class ClaudeSource(Source):
     dir_help = "Claude Code 数据目录（含 projects/），默认 $CLAUDE_CONFIG_DIR 或 ~/.claude"
     ctx_limit_key = "ctxLimit"
     reparse_gap = 5.0
+    page = {"fams": True, "notes": {
+        "why": "思考内容未被记录",
+        "mainSteps": "按 message.id 去重",
+        "hooks": "PreToolUse 拦截工具调用",
+        "hooksStop": " · Stop 钩子拦截结束 {n} 次",
+        "reasonMissing": "简报里没有以「选档理由：」开头的行。",
+        "lastText": "没有 SubagentHandback，取最后一段文字"}}
 
     def files(self):
         return glob.glob(os.path.join(self.root, "projects", "*", "*.jsonl"))

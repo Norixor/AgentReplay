@@ -5,8 +5,10 @@ const A = {};
 D.agents.forEach(a => { A[a.id] = a; });
 const MAIN = D.agents[0];
 const SUBS = D.agents.slice(1);
-const TOOL = D.meta.tool || 'claude';
-const TOOL_NAME = {claude: 'Claude Code', codex: 'Codex'}[TOOL] || TOOL;
+/* Source label, chip colour and source-specific explanations, from the server's source registry (sources.py). */
+const SRC = D.meta.source || {};
+const TOOL_NAME = SRC.label || D.meta.tool || '';
+const SRC_NOTES = SRC.notes || {};
 
 const CAT_LABEL = {read: '读代码与文档', test: '测试与检查', write: '写代码', git: 'git', wait: '等待与轮询', agent: '派子代理', other: '其他'};
 const CAT_SHORT = {read: '读', test: '测', write: '写', git: 'git', wait: '等', agent: '派', other: '其他'};
@@ -53,10 +55,10 @@ function famColor(name) {  // Claude families use theme variables; other model n
   String(name).split('').forEach(ch => { h = (h * 31 + ch.charCodeAt(0)) >>> 0; });
   return FAM_PALETTE[h % FAM_PALETTE.length];
 }
-function famList() { return TOOL === 'claude' ? FAMS : (D.meta.models || []); }
+function famList() { return SRC.fams ? FAMS : (D.meta.models || []); }
 function modelFam(m) { m = String(m || ''); return FAMS.includes(m) ? m : ((m.match(/haiku|sonnet|opus|fable/) || [])[0] || m); }
 function trigLabel(t) { return t === 'manual' ? '手动' : t === 'auto' ? '自动' : '类型未记录'; }
-function toolChip() { return '<span class="src src-' + esc(TOOL) + '">' + esc(TOOL_NAME) + '</span>'; }
+function toolChip() { return '<span class="src"' + (SRC.color ? ' style="background:' + esc(SRC.color) + '"' : '') + '>' + esc(TOOL_NAME) + '</span>'; }
 function chipColor(name) { return FAMS.includes(name) ? 'var(--' + name + '-bg)' : famColor(name); }
 function famChip(fam, effort) {
   return '<span class="fam" style="background:' + chipColor(fam) + '">' + esc(fam) + (effort ? '<i>·' + esc(effort) + '</i>' : '') + '</span>';

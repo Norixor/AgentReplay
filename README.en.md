@@ -237,8 +237,9 @@ src/                    all source, grouped by responsibility:
 | Group | Files | Responsibility |
 | --- | --- | --- |
 | Commands and config | `cli.py`, `config.py`, `sessions.py` | commands; data directories and cache locations; resolve a session argument, print the list |
+| Sources | `sources.py`, `source_claude.py`, `source_codex.py`, `scan_util.py` | source registry and adapter contract (a new source = one adapter module + one line in `sources.BUILTIN`); Claude Code and Codex scanning, list rows, session trees, parse entry, live feed, pricing and data roots |
 | Parsing | `parse.py`, `parse_codex.py`, `codex_scan.py`, `codex_calls.py`, `index.py`, `common.py`, `redact.py` | Claude Code and Codex transcripts -> one replay model; session index; categories, merge detection, totals; secret masking |
-| Pricing | `prices.py`, `prices.json`, `costcache.py` | per-step pricing and the price table; cached amounts for the session list |
+| Pricing | `prices.py`, `prices.json`, `costcache.py` | the price table, token vectors and amount display rules (per-step pricing lives in each source adapter); cached amounts for the session list |
 | Server | `server.py`, `render.py`, `boot.js`, `template.html`, `loading.html` | local HTTP app, background parse jobs, page cache, self-restart after a source change; assemble the single-file page; page routing and startup |
 | Live | `live.py`, `live_claude.py`, `live_codex.py`, `live.json`, `live.js`, `live_steps.py`, `live_steps.js` | incremental state and alerts for running sessions; the live page; incremental steps for replay pages |
 | Overview and lists | `list.*`, `overview.js`, `money.js`, `time_cats.js`, `views.js`, `view_agents.js`, `sub_status.js` | session list; overview; amount and token display; time by category; the sub-agents page and status column |
@@ -262,7 +263,7 @@ python3 scripts/check.py
 `scripts/check.py` runs these checks (it needs only Python; the JavaScript parts run when `node` is installed):
 
 1. Compile every `.py` file; run `node --check` on every `.js` file.
-2. Unit tests: time segmentation, terminal text, time analysis, the dialog model and the route map (`scripts/test_*.mjs`), plus pricing (`scripts/test_prices.py`).
+2. Unit tests: time segmentation, terminal text, time analysis, the dialog model and the route map (`scripts/test_*.mjs`), plus pricing (`scripts/test_prices.py`) and the source registry (`scripts/test_sources.py`: a fake source registered only in the test shows up in the data directory options, the session list, CLI resolution and the server routes without changes to the dispatching code).
 3. Generate the demo data, render the finished demo sessions and assert their agent and step counts; check the amounts against a hand calculation.
 4. Render every view of the demo pages against a stub DOM.
 5. Start the server on a free port and check `/`, `/api/sessions`, the live API, the incremental steps API, and that the server restarts itself after a source change. The server is stopped and the temporary data removed afterwards.
@@ -280,7 +281,7 @@ python3 scripts/check.py
 - Thinking text is not in the transcript, only how long it thought.
 - Codex sub-agent briefings are encrypted in the rollout, so only the dispatch parameters can be shown.
 - Windows is untested.
-- WorkBuddy and Cursor sessions are not supported yet.
+- WorkBuddy and Cursor sessions are not supported yet. Only registered sources (Claude Code, Codex) are read; a new source needs an adapter module following the contract in `src/sources.py`.
 - Amounts are estimates at official API list prices, not a bill; models missing from the price table are left out of the amounts.
 
 ## Troubleshooting

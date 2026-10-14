@@ -235,8 +235,9 @@ src/                    全部源码，按职责分组：
 | 分组 | 文件 | 职责 |
 | --- | --- | --- |
 | 命令与配置 | `cli.py`、`config.py`、`sessions.py` | 命令；数据目录与缓存位置；解析会话参数、打印列表 |
+| 来源 | `sources.py`、`source_claude.py`、`source_codex.py`、`scan_util.py` | 来源注册表与适配契约（新增来源 = 一个适配模块 + 在 `sources.BUILTIN` 登记一行）；Claude Code 与 Codex 的扫描、列表行、会话树、解析入口、实时、计价和数据目录 |
 | 解析 | `parse.py`、`parse_codex.py`、`codex_scan.py`、`codex_calls.py`、`index.py`、`common.py`、`redact.py` | Claude Code 与 Codex 记录 -> 同一套回放模型；会话索引；分类、合入识别、汇总；密钥脱敏 |
-| 价格 | `prices.py`、`prices.json`、`costcache.py` | 按步计价与价格表；会话列表用的金额缓存 |
+| 价格 | `prices.py`、`prices.json`、`costcache.py` | 价格表、token 向量与金额显示规则（按步计价在各来源的适配模块里）；会话列表用的金额缓存 |
 | 服务 | `server.py`、`render.py`、`boot.js`、`template.html`、`loading.html` | 本地 HTTP 应用、后台解析任务、页面缓存、源码更新后自动重启；组装单文件页面；页面路由与启动 |
 | 实时 | `live.py`、`live_claude.py`、`live_codex.py`、`live.json`、`live.js`、`live_steps.py`、`live_steps.js` | 进行中会话的增量状态与告警；实时页；回看页的增量追加 |
 | 总览与列表 | `list.*`、`overview.js`、`money.js`、`time_cats.js`、`views.js`、`view_agents.js`、`sub_status.js` | 会话列表；总览；金额与 token 的显示；按类别的时间；子代理页与状态列 |
@@ -260,7 +261,7 @@ python3 scripts/check.py
 `scripts/check.py` 依次做这些检查（只依赖 Python；装了 `node` 才做 JavaScript 部分）：
 
 1. 编译所有 `.py` 文件；对所有 `.js` 文件做 `node --check`。
-2. 运行单元测试：时间切分、终端文本、耗时分析、弹窗模型、路线图（`scripts/test_*.mjs`），以及计价（`scripts/test_prices.py`）。
+2. 运行单元测试：时间切分、终端文本、耗时分析、弹窗模型、路线图（`scripts/test_*.mjs`），以及计价（`scripts/test_prices.py`）和来源注册表（`scripts/test_sources.py`：只在测试里注册一个假来源，确认它不改分派代码就出现在数据目录参数、会话列表、命令行解析和服务路由里）。
 3. 生成演示数据，渲染其中已结束的会话并断言代理数和步数；对照手算结果核对金额。
 4. 用假 DOM 渲染演示页面的每个视图。
 5. 把服务起在空闲端口，检查 `/`、`/api/sessions`、实时接口、增量步骤接口，以及源码改动后服务能自行重启。结束后关闭服务并清理临时数据。
@@ -278,7 +279,7 @@ python3 scripts/check.py
 - 思考内容不在记录里，只有思考了多久。
 - Codex 发给子代理的简报在 rollout 里是加密的，只能显示派单参数。
 - Windows 未实测。
-- 暂不支持 WorkBuddy 和 Cursor 的会话。
+- 暂不支持 WorkBuddy 和 Cursor 的会话。只读取已注册的来源（Claude Code、Codex）；接入新来源需按 `src/sources.py` 的契约写一个适配模块。
 - 金额是按官方 API 标价的估算，不是账单；不在价格表里的模型不计入金额。
 
 ## 故障排查

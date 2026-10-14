@@ -68,7 +68,7 @@ function draw() {
   $('rows').innerHTML = all.slice(0, shown).map(r => {
     const href = '/s/' + r.tool + '/' + encodeURIComponent(r.id);
     const name = r.name || '(未命名)';
-    return '<tr data-href="' + href + '" class="' + (r.status === 'active' ? 'is-active' : '') + '"><td><span class="src src-' + r.tool + '">' + (r.tool === 'claude' ? 'Claude Code' : 'Codex') + '</span></td>' +
+    return '<tr data-href="' + href + '" class="' + (r.status === 'active' ? 'is-active' : '') + '"><td>' + srcChip(r.tool) + '</td>' +
       '<td class="nm' + (r.named ? '' : ' un') + '" title="' + esc(name + '\n' + r.id) + '"><a href="' + href + '">' + esc(name) + '</a> <button type="button" class="cp" data-cp="' + esc(r.id) + '" title="复制会话 id" aria-label="复制会话 id">id</button></td>' +
       '<td class="proj hn" title="' + esc(r.cwd) + '">' + esc(r.project) + '</td><td class="t hn">' + fmtT(r.start) + '</td><td class="t">' + fmtT(r.end) + '</td>' +
       '<td class="num hn">' + fmtSize(r.size) + '</td><td class="cellcost hn" title="打开过并且之后没有变化的会话才有；金额按官方标价估算">' + costCell(r) + '</td><td class="num hn">' + (r.subs || '') + '</td>' +
@@ -87,6 +87,20 @@ function draw() {
     : state === 'error' ? '<b>读取会话列表失败</b><span>' + esc(errMsg) + '。请确认 agent-replay serve 仍在运行。</span><button type="button" id="retry">重试</button>' : '';
   const rt = $('retry');
   if (rt) rt.onclick = () => load(false);
+}
+
+/* Source filter options and chips come from the server's source registry (/api/sessions "sources"). */
+let SOURCES = {};
+function fillSources(list) {
+  SOURCES = {};
+  (list || []).forEach(s => { SOURCES[s.id] = s; });
+  const cur = $('f-tool').value;
+  $('f-tool').innerHTML = '<option value="">全部</option>' + (list || []).map(s => '<option value="' + esc(s.id) + '">' + esc(s.label) + '</option>').join('');
+  $('f-tool').value = cur;
+}
+function srcChip(tool) {
+  const s = SOURCES[tool] || {label: tool, color: ''};
+  return '<span class="src"' + (s.color ? ' style="background:' + esc(s.color) + '"' : '') + '>' + esc(s.label) + '</span>';
 }
 
 function fillProjects() {
@@ -110,6 +124,7 @@ async function load(force) {
     rows = d.rows;
     state = 'ok';
     $('meta').textContent = '索引 ' + d.stats.total + ' 个文件，本次重扫 ' + d.stats.scanned + ' 个，用时 ' + d.stats.seconds.toFixed(2) + ' 秒';
+    fillSources(d.sources);
     fillProjects();
     lastAuto = Date.now();
   } catch (e) {

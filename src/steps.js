@@ -123,7 +123,7 @@ function detailWhyHTML(s, c) {
   if (c && c.desc) why.push('<li><b>调用自带的描述</b> ' + esc(c.desc) + '</li>');
   if (s.rsum) why.push('<li><b>推理摘要</b>（模型自述，加密的原始推理不可用）<div class="quote">' + esc(s.rsum) + '</div></li>');
   if (!s.cause.length && s.after != null) why.push('<li><b>承接</b> 上一步 #' + s.after + ' 的结果</li>');
-  return '<div class="blk"><h5>为什么调用（按来源拼出，' + (TOOL === 'codex' ? 'Codex 的原始推理是加密的，只有摘要可用' : '思考内容未被记录') + '）</h5><ul class="whys">' + (why.join('') || '<li class="dim">没有可还原的原因</li>') + '</ul></div>';
+  return '<div class="blk"><h5>为什么调用（按来源拼出，' + esc(SRC_NOTES.why || '') + '）</h5><ul class="whys">' + (why.join('') || '<li class="dim">没有可还原的原因</li>') + '</ul></div>';
 }
 
 /* One call of a step: dispatch target, background completion, full input, hook reason, (truncated) result. */

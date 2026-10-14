@@ -271,7 +271,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self.list_page())
             if path == "/api/sessions":
                 self.app.refresh(force=q.get("refresh") == ["1"])
-                return self._json({"rows": self.app.rows_live(), "stats": self.app.stats, "now": int(time.time() * 1000)})
+                return self._json({"rows": self.app.rows_live(), "stats": self.app.stats, "now": int(time.time() * 1000),
+                                   "sources": [s.chip() for s in sources.all()]})
             if path == "/api/live-list":  # light poll for the list page: only the sessions that are active right now
                 self.app.refresh()
                 act = {r["key"]: {"status": r["status"], "end": r["end"], "subs": r["subs"], "size": r["size"], "live": self.app.live_info(r)}

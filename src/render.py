@@ -77,6 +77,7 @@ def build_html(path, name, out_chars=600, inp_chars=4000, limit=SIZE_LIMIT, prog
     data["meta"]["generated"] = int(time.time() * 1000)
     data["meta"]["active"] = bool(active)
     data["meta"]["liveKey"] = "%s/%s" % (tool, data["meta"]["sid"])
+    data["meta"]["source"] = sources.get(tool).page_meta()
     data["meta"]["requestedOutChars"] = out_chars
     data["meta"]["note"] = ""
     data = walk(data)

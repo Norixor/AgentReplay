@@ -46,11 +46,11 @@ function renderOverview(root) {
     (m.note ? '<p class="warn">' + esc(m.note) + '</p>' : '') +
     '<div class="stats">' +
     stat('总时长', fmtDur(m.end - m.start), '含等待用户的空闲时间') +
-    stat('主代理步数', T.mainSteps, TOOL === 'codex' ? '一次模型响应算一步（按 token_count 切分）' : '按 message.id 去重') +
+    stat('主代理步数', T.mainSteps, SRC_NOTES.mainSteps || '') +
     stat('子代理', T.nsub, '含嵌套') +
     stat('预估金额', '<span title="' + esc(tokTitle(T.tok)) + '">' + moneyH(T.cost) + '</span>', '主 ' + moneyH(T.mainCost) + ' · 子 ' + moneyH(T.subCost) + ' · ' + fmtTok(tokSum(T.tok)) + ' token') +
     stat('上下文压缩', T.compacts.length, (T.compacts.slice(0, 3).map(c => trigLabel(c.trigger) + '，压缩前 ' + fmtTok(c.pre || 0)).join('；') + (T.compacts.length > 3 ? '；…等共 ' + T.compacts.length + ' 次' : '')) || '无') +
-    stat('钩子拦截', T.hooks, TOOL === 'codex' ? '按输出文本识别（Codex 没有结构化的拦截记录）' : 'PreToolUse 拦截工具调用' + (T.stopBlocks ? ' · Stop 钩子拦截结束 ' + T.stopBlocks + ' 次' : '')) +
+    stat('钩子拦截', T.hooks, (SRC_NOTES.hooks || '') + (T.stopBlocks && SRC_NOTES.hooksStop ? SRC_NOTES.hooksStop.replace('{n}', T.stopBlocks) : '')) +
     stat('超过 60 秒的命令', fmtDur(T.longT), T.longN + ' 条前台命令' + (T.bgLongT ? ' · 另有后台命令累计 ' + fmtDur(T.bgLongT) + '（可能并行）' : '')) +
     '</div>' + (unp ? '<p class="warn">' + unp + '。</p>' : '') +
     '<div class="cols"><section class="card"><h3>金额：主代理与子代理</h3>' +

@@ -146,6 +146,11 @@ class CodexSource(Source):
     dir_help = "Codex 数据目录（含 sessions/），默认 $CODEX_HOME 或 ~/.codex"
     ctx_limit_key = "ctxLimitCodex"
     reparse_gap = 30.0  # no incremental reader: every re-parse reads whole rollouts
+    page = {"fams": False, "notes": {
+        "why": "Codex 的原始推理是加密的，只有摘要可用",
+        "mainSteps": "一次模型响应算一步（按 token_count 切分）",
+        "hooks": "按输出文本识别（Codex 没有结构化的拦截记录）",
+        "lastText": "取该线程最后一条不带工具调用的回复"}}
 
     def files(self):
         root = self.root
