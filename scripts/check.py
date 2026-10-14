@@ -155,6 +155,17 @@ def check_sources():
         report(True, "source registry tests passed (%d cases)" % len(cases))
 
 
+def check_opencode():
+    """opencode source tests on synthetic SQLite databases (scripts/test_opencode.py)."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import test_opencode
+    cases, bad = test_opencode.run()
+    for name in bad:
+        report(False, "opencode: " + name)
+    if not bad:
+        report(True, "opencode source tests passed (%d cases)" % len(cases))
+
+
 def raw_claude_messages(path):
     """[(model, usage)] of the main transcript in order of first appearance, one entry per message id (the row with the most output)."""
     order, best = [], {}
@@ -454,7 +465,8 @@ def main():
     check_prices()
     check_gemini()
     check_sources()
-    tmp = tempfile.mkdtemp(prefix="agent-replay-check-")
+    check_opencode()
+    tmp =tempfile.mkdtemp(prefix="agent-replay-check-")
     try:
         check_render(tmp)
         check_server(tmp)

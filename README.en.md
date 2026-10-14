@@ -1,7 +1,7 @@
 <h1 align="center">AgentReplay</h1>
 <p align="center">
   <strong>See what every agent did, why it did it, and what it cost.</strong><br />
-  A local, read-only viewer for Claude Code, Codex and Gemini CLI sessions. It turns long multi-agent runs into an overview, a timeline, a step-by-step replay with the reason behind each call, per-sub-agent details, and a live monitor for sessions that are still running. No dependencies, nothing leaves your machine.
+  A local, read-only viewer for Claude Code, Codex, Gemini CLI and opencode sessions. It turns long multi-agent runs into an overview, a timeline, a step-by-step replay with the reason behind each call, per-sub-agent details, and a live monitor for sessions that are still running. No dependencies, nothing leaves your machine.
 </p>
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-orange" alt="Apache-2.0 license" /></a>
@@ -39,7 +39,7 @@
 
 A coding agent that runs for hours, with sub-agents of different models and effort levels, leaves a transcript that is hard to read: thousands of rows, nested agents, tool output, retries, hook blocks, context compaction. When something is slow or expensive, the questions are always the same: what did each agent do, why did it make that call, how long did it wait, and what did it cost (estimated)?
 
-AgentReplay answers them from the transcripts that Claude Code, Codex and Gemini CLI already write to disk. It only reads those files, starts a small web server bound to `127.0.0.1`, and shows every session in a browser. The interface is currently Simplified Chinese only; the session content itself is shown as recorded, in any language.
+AgentReplay answers them from the transcripts that Claude Code, Codex, Gemini CLI and opencode already write to disk. It only reads those files, starts a small web server bound to `127.0.0.1`, and shows every session in a browser. The interface is currently Simplified Chinese only; the session content itself is shown as recorded, in any language.
 
 ## Requirements
 
@@ -83,7 +83,7 @@ The browser opens the session list at `http://127.0.0.1:8790/`. Click a session 
 
 ## Key features
 
-- **Session list**: every Claude Code, Codex and Gemini CLI session on the machine in one table, with project, model, size, estimated amount (for sessions already opened), sub-agent count and an "in progress" marker; filter by source, project, status or keyword, and sort by any column.
+- **Session list**: every Claude Code, Codex, Gemini CLI and opencode session on the machine in one table, with project, model, size, estimated amount (for sessions already opened), sub-agent count and an "in progress" marker; filter by source, project, status or keyword, and sort by any column.
 - **Estimated amount and tokens**: every place that shows cost uses an **estimated amount in USD** at official API list prices, with the token count beside it; hover for the breakdown (input, cache write, cache read, output). The price table is `src/prices.json`, which records its sources, read date and pricing rules (see [Configuration](#configuration)). Models without a price are left out of the amounts; local models count as 0. Subscription plans are not billed per token, so the amount is for comparison only.
 - **Overview**: totals for the whole run split by agent, model and effort, and by activity (read, test, write, git, wait, agent), plus hook blocks, compactions, long commands and merges. A "time by category" block shows where the time went, in two views: the main agent (wall clock) and all agents added up.
 - **Timeline**: all agents on one time axis, so parallel work, waiting and idle gaps are visible at a glance.
@@ -147,7 +147,12 @@ The browser opens the session list at `http://127.0.0.1:8790/`. Click a session 
 - Sees: user messages, every model response with its tokens (input, cached, output, thinking), thought summaries (subject and description), tool calls (arguments, result, success or failure), and sub-agent sessions linked through the `agentId` of an `invoke_agent` call (both the dispatch prompt and the returned result are readable). The project name comes from `projects.json` and the `.project_root` file of each project directory.
 - Limits: no live page; an in-progress session is only refreshed by reloading the replay. All times are estimated from the recorded timestamps: a message is stamped when it was written and a tool call when it finished, so a tool's duration is its finish time minus the time of the message that issued it, and parallel tools of one message overlap; current CLI versions stamp thoughts with the message time, so no thinking time is shown. The `a2a-serv` sessions written by the Gemini A2A server contain user messages only and no model reply, so they are not listed (unless in progress). The CLI writes each model message twice into the file; tokens are counted once after merging by `id`.
 
-These formats are internal details of the tools and may change; a new version can break parsing until it is updated here.
+**opencode** (`<opencode dir>/opencode*.db`, one SQLite database holding every session of every project)
+
+- Sees: user messages, every model response (one assistant message = one step) with its token usage including reasoning, cache reads and cache writes, tool calls with start and end times (commands, reads and writes, searches, web fetches; failures and non-zero exit codes included), `reasoning` summaries, sub-sessions linked through `parent_id` (started by the `task` tool) with their briefing, interruptions and failed model calls, session title and archived state.
+- Limits: there is no live page (the database is opencode's own working store; it is only read here, not polled). Amounts are computed by matching the model name against the `claude` and `codex` price sections; models that match neither (and `org/model` names served through a gateway) have no amount while their tokens are still counted. The `cost` opencode records itself is often 0 and is not used. When opencode stores a large tool output separately under `tool-output/`, the page only has the part kept in the database. The database is opened read-only, but for a WAL-mode database SQLite may create the `-wal` / `-shm` helper files next to it; the content is never modified.
+
+The formats are internal details of the tools (opencode's table layout most of all) and may change; a new version can break parsing until it is updated here.
 
 ## Privacy and security
 
@@ -167,6 +172,7 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 | `--claude-dir DIR` / `AGENT_REPLAY_CLAUDE_DIR` / `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code data root (contains `projects/`, `sessions/`) |
 | `--codex-dir DIR` / `AGENT_REPLAY_CODEX_DIR` / `CODEX_HOME` | `~/.codex` | Codex data root (contains `sessions/`, `archived_sessions/`, `session_index.jsonl`) |
 | `--gemini-dir DIR` / `AGENT_REPLAY_GEMINI_DIR` / `GEMINI_CLI_HOME` | `~/.gemini` | Gemini CLI data root (contains `tmp/`, `projects.json`); `GEMINI_CLI_HOME` is the directory above it (the CLI creates `.gemini` inside), so the actual directory is `$GEMINI_CLI_HOME/.gemini` |
+| `--opencode-dir DIR` / `AGENT_REPLAY_OPENCODE_DIR` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | opencode data root (contains `opencode.db`, or `opencode-<channel>.db` for non-stable builds). `XDG_DATA_HOME` only applies when neither the option nor `AGENT_REPLAY_OPENCODE_DIR` is given |
 | `AGENT_REPLAY_HOME` | `<project>/replays` | Where exported pages and caches are written |
 | `AGENT_REPLAY_PORT` | `8790` | Port used by `agent-replay.command` only; the CLI uses `--port` |
 
@@ -180,6 +186,8 @@ All amounts are **estimates in USD** from the official API list prices, not a bi
 - `models`: USD per million tokens, matched by the **exact model name** after a trailing date suffix is removed (`claude-haiku-4-5-20251001` finds `claude-haiku-4-5`). Claude entries have `input`, `cache_write_5m`, `cache_write_1h`, `cache_read`, `output`; Haiku 5.5 has `tiers`, chosen per request by prompt length (`max_prompt_tokens`, `null` = no limit). Codex entries have `input`, `cached_input`, `cache_write` (`null` = no separate price, billed as uncached input), `output` and an optional `long_context` block. Gemini entries have `input`, `cached_input`, `output`, an optional `long_context` (a prompt above `over_prompt_tokens` is priced entirely at its rates) and `changes` (new prices announced on the pricing page from a UTC date; the last one already in effect on the message date applies).
 - `_rules`: the pricing rules applied by `src/prices.py`: Claude cache writes are priced by TTL (without the breakdown the whole write counts as 5 minutes), `usage.inference_geo` = `us` multiplies by 1.1, a non-standard `service_tier` (fast mode) is priced at the standard rate and flagged; Codex input already contains cached and cache-written tokens (uncached = input - cached - cache write), output already contains reasoning tokens, and above 272,000 input tokens the long-context rates apply with cached input at 10% of the long-context input rate (an assumption: the page does not list it; long-context cache writes scale the model's cache-write rate by the same ratio as its input rate). Gemini `input` already contains `cached` (uncached = input - cached) and the cached part is billed at the cache rate; thinking tokens are billed at the output rate and shown as a separate part of output; tool-use prompt tokens (`tool`) are billed as input (an assumption: the page does not list them). Per-modality prices (audio) are applied at the text rate; search grounding, explicit-cache storage and batch tiers are not detected.
 - `unpriced`: models known to be missing from the price table, for example `gpt-5.3-codex-spark`, `gpt-4.5` and `gemini-3-pro`. A model that is not in the table has no amount: its tokens are counted, it is left out of every total, and the pages say "N steps use an unpriced model and are not counted". Local or open-weight models (a name containing `/` or `:`, or starting with `ollama`) cost 0 and are marked as local.
+
+- The `opencode` section has no prices of its own, only `_rules`: opencode uses models of many providers, so the model name (ignoring prefixes such as `anthropic/`, Bedrock affixes and a date suffix) is looked up in the `claude` section and then the `codex` section. opencode's input excludes the cached parts and reasoning is counted separately; both are converted to the shape the `codex` rules expect before they apply. Providers named `ollama`, `lmstudio` or `llama.cpp` count as local models (amount 0); any other model that matches no entry is not guessed.
 
 To update prices, edit the numbers (and `read_date`) and restart the server; pages cached from older prices are regenerated because the file is part of the code signature. Run `python3 scripts/test_prices.py` after changing rules.
 
@@ -205,10 +213,10 @@ Thresholds for the live monitor; changes apply without a restart. Times are in s
 ## CLI reference
 
 ```text
-agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR]
+agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
 agent-replay demo  [--port N] [--no-open]
-agent-replay <session> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR]
-agent-replay --list [PROJECT] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR]
+agent-replay <session> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
+agent-replay --list [PROJECT] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
 ```
 
 - `serve`: start the web app (default port 8790). If an instance already answers on that port it is reused; if the port is taken by something else, the next free port is used.
@@ -222,8 +230,8 @@ Transcripts do not contain the model's private reasoning, so the page does not c
 
 1. **Trigger**: the events right before the step: your message, a hook block or hook feedback, a sub-agent hand-back, a background task notice, a compaction.
 2. **What the agent said**: the text in the same response before the call, or in the previous response (marked as such).
-3. **The call's own description**: the `description` of a Bash call, a Codex justification or title, the `description` of a Gemini shell call.
-4. **Reasoning summary**: Codex reasoning summaries, when the rollout has them; Gemini thought summaries (the subject and description in `thoughts`: summaries the model wrote, not the raw thinking; some responses have none). Text a Gemini message carries before its calls counts as the agent's explanation.
+3. **The call's own description**: the `description` of a Bash call, a Codex justification or title, the `description` of a Gemini shell call, the `description` in an opencode tool input.
+4. **Reasoning summary**: Codex reasoning summaries, when the rollout has them; Gemini thought summaries (the subject and description in `thoughts`: summaries the model wrote, not the raw thinking; some responses have none); opencode `reasoning` parts (some models expose no text). Text a Gemini message carries before its calls counts as the agent's explanation.
 5. **Dispatch parameters**: for sub-agents, model, effort, background or not, and the briefing. A briefing line that starts with `选档理由：` ("reason for the model choice") is highlighted as the dispatch reason; this is a convention, and briefings without it are shown normally.
 6. If nothing else exists, the step is shown as following up on the result of the previous step.
 
@@ -245,6 +253,7 @@ src/                    all source, grouped by responsibility:
 | Commands and config | `cli.py`, `config.py`, `sessions.py` | commands; data directories and cache locations; resolve a session argument, print the list |
 | Sources | `sources.py`, `source_claude.py`, `source_codex.py`, `source_gemini.py`, `scan_util.py` | source registry and adapter contract (a new source = one adapter module + one line in `sources.BUILTIN`); Claude Code, Codex and Gemini CLI scanning, list rows, session trees, parse entry, live feed (none for Gemini), pricing and data roots |
 | Parsing | `parse.py`, `parse_codex.py`, `codex_scan.py`, `codex_calls.py`, `parse_gemini.py`, `gemini_scan.py`, `gemini_calls.py`, `index.py`, `common.py`, `redact.py` | Claude Code, Codex and Gemini CLI transcripts -> one replay model; session index; categories, merge detection, totals; secret masking |
+| opencode | `source_opencode.py`, `opencode_scan.py`, `opencode_calls.py`, `parse_opencode.py` | opencode source: read-only SQLite, sessions addressed by virtual paths `<db>#<session id>` whose `stat` reflects changes; list scan, session tree, messages and parts -> replay model, pricing by model name |
 | Pricing | `prices.py`, `prices.json`, `costcache.py` | the price table, token vectors and amount display rules (per-step pricing lives in each source adapter); cached amounts for the session list |
 | Server | `server.py`, `render.py`, `boot.js`, `template.html`, `loading.html` | local HTTP app, background parse jobs, page cache, self-restart after a source change; assemble the single-file page; page routing and startup |
 | Live | `live.py`, `live_claude.py`, `live_codex.py`, `live.json`, `live.js`, `live_steps.py`, `live_steps.js` | incremental state and alerts for running sessions; the live page; incremental steps for replay pages |
@@ -288,7 +297,8 @@ python3 scripts/check.py
 - Codex sub-agent briefings are encrypted in the rollout, so only the dispatch parameters can be shown.
 - Gemini CLI has no live page; its times are estimated from timestamps (parallel tools overlap, current CLI versions record no thinking time); dated price changes announced in the price table are applied by message date only, and models missing from the table are left out of the amounts.
 - Windows is untested.
-- WorkBuddy and Cursor sessions are not supported yet. Only registered sources (Claude Code, Codex, Gemini CLI) are read; a new source needs an adapter module following the contract in `src/sources.py`.
+- Gemini CLI and opencode have no live page; opencode also depends on its internal SQLite table layout, which may change between opencode versions.
+- WorkBuddy and Cursor sessions are not supported yet. Only registered sources (Claude Code, Codex, Gemini CLI, opencode) are read; a new source needs an adapter module following the contract in `src/sources.py`.
 - Amounts are estimates at official API list prices, not a bill; models missing from the price table are left out of the amounts.
 
 ## Troubleshooting

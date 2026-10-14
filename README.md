@@ -1,7 +1,7 @@
 <h1 align="center">AgentReplay</h1>
 <p align="center">
   <strong>看清每个代理做了什么、为什么这么做、花了多少。</strong><br />
-  在本机只读查看 Claude Code、Codex 与 Gemini CLI 会话的回放工具。把长时间运行的多代理会话整理成总览、时间线、带调用原因的逐步回看、子代理详情，以及进行中会话的实时监控。无需安装依赖，数据不出本机。
+  在本机只读查看 Claude Code、Codex、Gemini CLI 与 opencode 会话的回放工具。把长时间运行的多代理会话整理成总览、时间线、带调用原因的逐步回看、子代理详情，以及进行中会话的实时监控。无需安装依赖，数据不出本机。
 </p>
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-orange" alt="Apache-2.0 许可证" /></a>
@@ -39,7 +39,7 @@
 
 一个跑上几个小时、带着不同模型和强度的子代理的编程代理，留下的会话记录很难读：成千上万行、层层嵌套的代理、工具输出、重试、钩子拦截、上下文压缩。出现“慢”或“贵”的时候，问题总是那几个：每个代理做了什么？为什么发起这个调用？等了多久？大概花了多少钱（估算）？
 
-AgentReplay 直接从 Claude Code、Codex 和 Gemini CLI 已经写在磁盘上的会话记录里回答这些问题。它只读取这些文件，在本机起一个只绑定 `127.0.0.1` 的小型网页服务，在浏览器里展示所有会话。界面目前只有简体中文；会话内容按记录原样显示，不限语言。
+AgentReplay 直接从 Claude Code、Codex、Gemini CLI 和 opencode 已经写在磁盘上的会话记录里回答这些问题。它只读取这些文件，在本机起一个只绑定 `127.0.0.1` 的小型网页服务，在浏览器里展示所有会话。界面目前只有简体中文；会话内容按记录原样显示，不限语言。
 
 ## 环境要求
 
@@ -83,7 +83,7 @@ cd AgentReplay
 
 ## 特性
 
-- **会话列表**：本机所有 Claude Code、Codex 与 Gemini CLI 会话放在一张表里，显示项目、模型、大小、预估金额（打开过的会话才有）、子代理数和“进行中”标记；可按来源、项目、状态、关键词筛选，按任意列排序。
+- **会话列表**：本机所有 Claude Code、Codex、Gemini CLI 与 opencode 会话放在一张表里，显示项目、模型、大小、预估金额（打开过的会话才有）、子代理数和“进行中”标记；可按来源、项目、状态、关键词筛选，按任意列排序。
 - **预估金额与 token**：所有显示花费的地方都是按官方 API 标价估算的**美元金额**，旁边是 token 数，悬停可看分项（输入、缓存写入、缓存读取、输出）。价格表在 `src/prices.json`，写明出处、读取日期和计价规则（见[配置](#配置)）。未定价的模型不计入金额，本地模型记为 0。订阅套餐不按 token 计费，金额只用于比较。
 - **总览**：整个会话的合计，按代理、模型与强度、按活动类型（读取、测试、写入、git、等待、派单）拆分，并统计钩子拦截、上下文压缩、长命令和合入次数。另有“时间：按类别”，看时间花在哪里，分两种口径：主代理（墙钟）和所有代理合计。
 - **时间线**：所有代理放在同一条时间轴上，并行工作、等待和空闲一目了然。
@@ -147,7 +147,12 @@ cd AgentReplay
 - 能看到：用户消息、每次模型响应及其 token（输入、缓存、输出、思考）、思考摘要（主题与说明）、工具调用（参数、返回、成功或失败）、通过 `invoke_agent` 的 `agentId` 关联起来的子代理会话（派单提示词和交回结果都是可读的）。项目名来自 `projects.json` 与各项目目录里的 `.project_root`。
 - 局限：没有实时页，进行中的会话只能刷新回看页。时间都是按记录里的时间戳估算的：消息的时间是写入时刻，工具调用的时间是完成时刻，所以工具耗时 = 工具完成时刻 − 发起它的消息的时刻，同一条消息里并行的多个工具会互相重叠；新版 CLI 的思考时间戳与消息相同，因此不显示思考时长。Gemini A2A 服务写出的 `a2a-serv` 会话只有用户消息、没有模型回复，列表里不显示（除非正在进行中）。同一条模型消息在文件里会写两遍，按 `id` 合并后才计 token。
 
-这些格式都是工具的内部细节，可能随版本变化；新版本可能让解析失效，需要在这里更新。
+**opencode**（`<opencode 目录>/opencode*.db`，一个 SQLite 数据库，内含所有项目的全部会话）
+
+- 能看到：用户消息、每次模型响应（一条助手消息一步）的 token 用量（含推理、缓存读取、缓存写入）、带起止时间的工具调用（命令、读写、搜索、网页抓取等，含失败与非零退出码）、`reasoning` 推理摘要、通过 `parent_id` 关联的子会话（`task` 工具派出）及其简报、中断与模型调用出错、会话标题与归档状态。
+- 局限：没有实时页（数据库是 opencode 自己的工作库，这里只读，不做轮询）；金额按模型名匹配 `claude`、`codex` 两段价格表计算，匹配不上的模型（以及经网关使用的 `org/model` 名）没有金额，token 照常统计；opencode 自己记录的 `cost` 常为 0，不使用。工具的大块输出被 opencode 另存到 `tool-output/` 时，页面只有数据库里保留的那部分。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
+
+四种格式都是工具的内部细节（opencode 的表结构尤其如此），可能随版本变化；新版本可能让解析失效，需要在这里更新。
 
 ## 隐私与安全
 
@@ -167,6 +172,7 @@ cd AgentReplay
 | `--claude-dir DIR` / `AGENT_REPLAY_CLAUDE_DIR` / `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code 数据根目录（含 `projects/`、`sessions/`） |
 | `--codex-dir DIR` / `AGENT_REPLAY_CODEX_DIR` / `CODEX_HOME` | `~/.codex` | Codex 数据根目录（含 `sessions/`、`archived_sessions/`、`session_index.jsonl`） |
 | `--gemini-dir DIR` / `AGENT_REPLAY_GEMINI_DIR` / `GEMINI_CLI_HOME` | `~/.gemini` | Gemini CLI 数据根目录（含 `tmp/`、`projects.json`）；`GEMINI_CLI_HOME` 是其上一级目录（CLI 在里面建 `.gemini`），所以实际目录是 `$GEMINI_CLI_HOME/.gemini` |
+| `--opencode-dir DIR` / `AGENT_REPLAY_OPENCODE_DIR` | `$XDG_DATA_HOME/opencode`，否则 `~/.local/share/opencode` | opencode 数据根目录（含 `opencode.db`，非稳定版为 `opencode-<渠道>.db`）。`XDG_DATA_HOME` 只在没有给出参数和 `AGENT_REPLAY_OPENCODE_DIR` 时生效 |
 | `AGENT_REPLAY_HOME` | `<项目目录>/replays` | 导出页面和缓存的存放位置 |
 | `AGENT_REPLAY_PORT` | `8790` | 仅供 `agent-replay.command` 使用；命令行用 `--port` |
 
@@ -180,6 +186,8 @@ cd AgentReplay
 - `models`：每百万 token 的美元价，按**完整模型名**匹配（先去掉末尾的日期后缀，`claude-haiku-4-5-20251001` 对应 `claude-haiku-4-5`）。Claude 条目有 `input`、`cache_write_5m`、`cache_write_1h`、`cache_read`、`output`；Haiku 5.5 用 `tiers`，按单次请求的提示长度（`max_prompt_tokens`，`null` 表示不设上限）选档。Codex 条目有 `input`、`cached_input`、`cache_write`（`null` 表示没有单独的缓存写入价，按未缓存输入计）、`output`，以及可选的 `long_context`。Gemini 条目有 `input`、`cached_input`、`output`，可选的 `long_context`（提示超过 `over_prompt_tokens` 时整次请求按它计价）和 `changes`（价格页预告的、从某个 UTC 日期起生效的新价格，按消息日期取已生效的最后一条）。
 - `_rules`：`src/prices.py` 实际执行的计价规则。Claude 缓存写入按 TTL 分别计价（没有细分时整笔按 5 分钟）；`usage.inference_geo` 为 `us` 时乘 1.1；`service_tier` 不是 standard（快速模式）时按标准价计并标记出来。Codex 的输入已经包含缓存输入和缓存写入（未缓存 = 输入 − 缓存输入 − 缓存写入），输出已经包含推理 token；输入超过 27.2 万 token 时用长上下文价，其中缓存输入取长上下文输入价的 10%（这是假设，价格页没有列出；长上下文的缓存写入按该模型缓存写入价乘以长上下文与普通输入价的比值）。Gemini 的 `input` 已经包含 `cached`（未缓存 = 输入 − 缓存），缓存部分按缓存价；思考 token 按输出价计并在页面上作为输出的一部分单独列出；工具提示 token（`tool`）按输入价计（价格页没有单列，属于假设）。按模态区分的价格（音频）一律按文本价计；搜索接地、显式缓存存储和批处理等档位不检测。
 - `unpriced`：已知不在价格表里的模型，例如 `gpt-5.3-codex-spark`、`gpt-4.5`、`gemini-3-pro`。不在表里的模型没有金额：token 照常统计，金额不计入任何合计，页面会写明“N 步模型未定价，未计入金额”。本地或开源模型（名字里带 `/` 或 `:`，或以 `ollama` 开头）金额记为 0，并标明是本地模型。
+
+- `opencode` 段没有自己的价格，只有 `_rules`：opencode 使用多家提供商的模型，按模型名（忽略 `anthropic/` 之类的前缀、Bedrock 前后缀和日期后缀）依次在 `claude`、`codex` 两段里找；opencode 的输入不含缓存部分、推理单独计数，进入 `codex` 段规则前会换算成它要求的形态。名为 `ollama`、`lmstudio`、`llama.cpp` 的提供商记为本地模型（金额 0）；其他匹配不上的模型不猜价格。
 
 更新价格：改数字（和 `read_date`）后重启服务；旧价格生成的缓存页面会自动重新生成，因为这个文件属于代码签名的一部分。改了规则之后运行 `python3 scripts/test_prices.py`。
 
@@ -203,10 +211,10 @@ cd AgentReplay
 ## 命令行参考
 
 ```text
-agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR]
+agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
 agent-replay demo  [--port N] [--no-open]
-agent-replay <会话> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR]
-agent-replay --list [项目] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR]
+agent-replay <会话> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
+agent-replay --list [项目] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
 ```
 
 - `serve`：启动网页应用（默认端口 8790）。该端口上已有 AgentReplay 在运行时会直接复用；端口被其他程序占用时自动换下一个空闲端口。
@@ -220,8 +228,8 @@ agent-replay --list [项目] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemi
 
 1. **触发**：这一步之前的事件：你的消息、钩子拦截或钩子反馈、子代理交回、后台任务通知、上下文压缩。
 2. **代理自己的说明**：同一次响应里调用之前的文字，或上一次响应里的文字（会标明）。
-3. **调用本身的描述**：Bash 调用的 `description`，Codex 的 justification 或 title，Gemini 的 shell 调用 `description`。
-4. **推理摘要**：Codex 的推理摘要（rollout 里有时才有），Gemini 的思考摘要（`thoughts` 的主题与说明，模型自己写的摘要，不是原始思考；有的响应没有）。Gemini 消息里调用之前的文字算“代理的说明”。
+3. **调用本身的描述**：Bash 调用的 `description`，Codex 的 justification 或 title，Gemini 的 shell 调用 `description`，opencode 工具输入里的 `description`。
+4. **推理摘要**：Codex 的推理摘要（rollout 里有时才有），Gemini 的思考摘要（`thoughts` 的主题与说明，模型自己写的摘要，不是原始思考；有的响应没有），opencode 的 `reasoning` 部分（部分模型不提供文字）。Gemini 消息里调用之前的文字算“代理的说明”。
 5. **派单参数**：对子代理，显示模型、强度、是否后台以及简报。简报里以 `选档理由：` 开头的一行会被突出显示为派单原因；这是一种约定，没有这一行的简报照常显示。
 6. 以上都没有时，这一步显示为承接上一步的结果。
 
@@ -243,6 +251,7 @@ src/                    全部源码，按职责分组：
 | 命令与配置 | `cli.py`、`config.py`、`sessions.py` | 命令；数据目录与缓存位置；解析会话参数、打印列表 |
 | 来源 | `sources.py`、`source_claude.py`、`source_codex.py`、`source_gemini.py`、`scan_util.py` | 来源注册表与适配契约（新增来源 = 一个适配模块 + 在 `sources.BUILTIN` 登记一行）；Claude Code、Codex 与 Gemini CLI 的扫描、列表行、会话树、解析入口、实时（Gemini 没有）、计价和数据目录 |
 | 解析 | `parse.py`、`parse_codex.py`、`codex_scan.py`、`codex_calls.py`、`parse_gemini.py`、`gemini_scan.py`、`gemini_calls.py`、`index.py`、`common.py`、`redact.py` | Claude Code、Codex 与 Gemini CLI 记录 -> 同一套回放模型；会话索引；分类、合入识别、汇总；密钥脱敏 |
+| opencode | `source_opencode.py`、`opencode_scan.py`、`opencode_calls.py`、`parse_opencode.py` | opencode 来源：只读 SQLite，会话用虚拟路径 `<库>#<会话 id>` 表示并由 `stat` 反映变化；列表扫描、会话树、消息与部分 -> 回放模型、按模型名计价 |
 | 价格 | `prices.py`、`prices.json`、`costcache.py` | 价格表、token 向量与金额显示规则（按步计价在各来源的适配模块里）；会话列表用的金额缓存 |
 | 服务 | `server.py`、`render.py`、`boot.js`、`template.html`、`loading.html` | 本地 HTTP 应用、后台解析任务、页面缓存、源码更新后自动重启；组装单文件页面；页面路由与启动 |
 | 实时 | `live.py`、`live_claude.py`、`live_codex.py`、`live.json`、`live.js`、`live_steps.py`、`live_steps.js` | 进行中会话的增量状态与告警；实时页；回看页的增量追加 |
@@ -286,7 +295,8 @@ python3 scripts/check.py
 - Codex 发给子代理的简报在 rollout 里是加密的，只能显示派单参数。
 - Gemini CLI 没有实时页；时间是按时间戳估算的（并行工具的耗时互相重叠，新版 CLI 没有思考时长）；价格表里按日期预告的变化只按消息日期处理，不在表里的模型不计金额。
 - Windows 未实测。
-- 暂不支持 WorkBuddy 和 Cursor 的会话。只读取已注册的来源（Claude Code、Codex、Gemini CLI）；接入新来源需按 `src/sources.py` 的契约写一个适配模块。
+- Gemini CLI 与 opencode 没有实时页；opencode 还依赖其内部 SQLite 表结构，可能随 opencode 版本变化。
+- 暂不支持 WorkBuddy 和 Cursor 的会话。只读取已注册的来源（Claude Code、Codex、Gemini CLI、opencode）；接入新来源需按 `src/sources.py` 的契约写一个适配模块。
 - 金额是按官方 API 标价的估算，不是账单；不在价格表里的模型不计入金额。
 
 ## 故障排查

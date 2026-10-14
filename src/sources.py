@@ -89,7 +89,7 @@ import importlib
 import os
 import re
 
-BUILTIN = ("source_claude", "source_codex", "source_gemini")  # adapter modules, in display order; each defines SOURCE
+BUILTIN = ("source_claude", "source_codex", "source_gemini", "source_opencode")  # adapter modules, in display order; each defines SOURCE
 _REG = {}
 _loaded = []
 
