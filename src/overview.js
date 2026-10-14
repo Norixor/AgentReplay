@@ -75,7 +75,7 @@ function paintOverview(S) {
   ctx.fillText('在跑的代理 峰值 ' + B.maxConc, 4, 1);
   ctx.fillStyle = cssVar('--opus-ink');
   ctx.textAlign = 'right';
-  ctx.fillText('每桶预估金额 峰值 ' + fmtMoney(B.maxCost) + '（桶宽约 ' + fmtDur(B.realBw) + '）', W - 4, 1);
+  if (!noUsage()) ctx.fillText('每桶预估金额 峰值 ' + fmtMoney(B.maxCost) + '（桶宽约 ' + fmtDur(B.realBw) + '）', W - 4, 1);
   if (S.now) {
     const x = Math.round(tx(S, S.now)) + .5;
     if (x >= 0 && x <= W) { ctx.strokeStyle = cssVar('--bad'); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
@@ -97,5 +97,5 @@ function ovTip(S, px) {
   const i = Math.min(B.n - 1, Math.max(0, Math.floor(px / S.plotW * B.n)));
   if (B.gap[i]) return '<b>空闲</b>';
   const ra = S.W.v2r(S.v0 + i * B.bw), rb = S.W.v2r(S.v0 + (i + 1) * B.bw);
-  return '<b>' + fmtTS(ra) + ' – ' + fmtClock(rb) + '</b><br>同时在跑 ' + B.conc[i] + ' 个代理<br>预估金额 ' + moneyH(B.cost[i]) + ' · ' + fmtTok(B.tok[i]) + ' token';
+  return '<b>' + fmtTS(ra) + ' – ' + fmtClock(rb) + '</b><br>同时在跑 ' + B.conc[i] + ' 个代理' + (noUsage() ? '' : '<br>预估金额 ' + moneyH(B.cost[i]) + ' · ' + fmtTok(B.tok[i]) + ' token');
 }

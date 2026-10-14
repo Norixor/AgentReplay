@@ -30,7 +30,7 @@ class CursorSource(Source):
     dir_envs = ("AGENT_REPLAY_CURSOR_DIR",)
     dir_help = "Cursor 数据目录（含 User/globalStorage/state.vscdb），默认 macOS ~/Library/Application Support/Cursor、Linux ~/.config/Cursor、Windows %%APPDATA%%\\Cursor"
     live_supported = False
-    page = {"fams": False, "notes": {
+    page = {"fams": False, "noUsage": True, "notes": {
         "why": "思考摘要来自 thinking（Cursor 不一定保存文字）；工具调用前的说明取自同一次响应里的文字",
         "mainSteps": "一次模型响应算一步（文字、思考、每个工具调用在记录里是分开的消息，按同一次响应的调用 id 归并）；Cursor 不在本地记录 token 用量，所以没有金额",
         "hooks": "Cursor 的会话记录里没有钩子拦截",

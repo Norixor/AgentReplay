@@ -30,6 +30,7 @@ function tokenCard(tok) {
 
 /* Footnote of the whole page: where the prices come from and what the amounts mean. */
 function priceFootnote() {
+  if (noUsage()) return '';
   const p = D.meta.pricing || {}, src = /^https?:\/\//.test(p.source || '') ? p.source : '';
   return '<p class="note price-note">金额按官方 API 标价估算（' + esc(p.readDate || '未知日期') + ' 读取' + (src ? '，<a href="' + esc(src) + '" target="_blank" rel="noopener noreferrer">出处</a>' : '') +
     '）；订阅套餐（如 Claude Max、ChatGPT 套餐）不按 token 计费，金额只用于比较和定位成本。</p>' +
@@ -48,22 +49,22 @@ function renderOverview(root) {
     stat('总时长', fmtDur(m.end - m.start), '含等待用户的空闲时间') +
     stat('主代理步数', T.mainSteps, SRC_NOTES.mainSteps || '') +
     stat('子代理', T.nsub, '含嵌套') +
-    stat('预估金额', '<span title="' + esc(tokTitle(T.tok)) + '">' + moneyH(T.cost) + '</span>', '主 ' + moneyH(T.mainCost) + ' · 子 ' + moneyH(T.subCost) + ' · ' + fmtTok(tokSum(T.tok)) + ' token') +
+    usageStat('预估金额', '<span title="' + esc(tokTitle(T.tok)) + '">' + moneyH(T.cost) + '</span>', '主 ' + moneyH(T.mainCost) + ' · 子 ' + moneyH(T.subCost) + ' · ' + fmtTok(tokSum(T.tok)) + ' token') +
     stat('上下文压缩', T.compacts.length, (T.compacts.slice(0, 3).map(c => trigLabel(c.trigger) + '，压缩前 ' + fmtTok(c.pre || 0)).join('；') + (T.compacts.length > 3 ? '；…等共 ' + T.compacts.length + ' 次' : '')) || '无') +
     stat('钩子拦截', T.hooks, (SRC_NOTES.hooks || '') + (T.stopBlocks && SRC_NOTES.hooksStop ? SRC_NOTES.hooksStop.replace('{n}', T.stopBlocks) : '')) +
     stat('超过 60 秒的命令', fmtDur(T.longT), T.longN + ' 条前台命令' + (T.bgLongT ? ' · 另有后台命令累计 ' + fmtDur(T.bgLongT) + '（可能并行）' : '')) +
     '</div>' + (unp ? '<p class="warn">' + unp + '。</p>' : '') +
-    '<div class="cols"><section class="card"><h3>金额：主代理与子代理</h3>' +
+    (noUsage() ? '' : '<div class="cols"><section class="card"><h3>金额：主代理与子代理</h3>' +
     bar('主代理', T.mainCost, T.cost, 'c-main', moneyExtra(T.mainCost, T.mainTok, T.cost)) +
     bar('子代理', T.subCost, T.cost, 'c-sub', moneyExtra(T.subCost, T.subTok, T.cost)) +
     '<h3>金额：按模型</h3>' + fams.map(f => bar(famChip(f), T.byFam[f].c, famMax, '', moneyExtra(T.byFam[f].c, T.byFam[f].tok, T.cost), famColor(f))).join('') +
-    '</section><section class="card">' + tokenCard(T.tok) + '</section></div>' +
-    '<div class="cols"><section class="card"><h3>金额：按活动类别</h3>' + catSection(T.byCat, T.cost) +
-    '<p class="note">一步里有多个工具调用时，金额和 token 平均分给这些调用的类别；纯文字回复计入「其他」。</p></section>' +
+    '</section><section class="card">' + tokenCard(T.tok) + '</section></div>') +
+    '<div class="cols">' + (noUsage() ? '' : '<section class="card"><h3>金额：按活动类别</h3>' + catSection(T.byCat, T.cost) +
+    '<p class="note">一步里有多个工具调用时，金额和 token 平均分给这些调用的类别；纯文字回复计入「其他」。</p></section>') +
     timeCatCard() + '</div>' +
-    '<div class="cols"><section class="card"><h3>子代理（按模型和强度）</h3><table class="tbl"><tr><th>模型</th><th>强度</th><th>数量</th><th class="r">预估金额</th></tr>' +
-    T.groups.map(g => '<tr><td>' + famChip(modelFam(g.model)) + '</td><td>' + esc(g.effort) + '</td><td>' + g.n + '</td><td class="cellcost">' + costHTML(g.cost, g.tok) + '</td></tr>').join('') +
-    '</table></section><section class="card"><h3>预估金额最高的子代理</h3><table class="tbl"><tr><th>任务</th><th>模型</th><th>步数</th><th class="r">预估金额</th></tr>' +
+    '<div class="cols"><section class="card"><h3>子代理（按模型和强度）</h3><table class="tbl"><tr><th>模型</th><th>强度</th><th>数量</th>' + (noUsage() ? '' : '<th class="r">预估金额</th>') + '</tr>' +
+    T.groups.map(g => '<tr><td>' + famChip(modelFam(g.model)) + '</td><td>' + esc(g.effort) + '</td><td>' + g.n + '</td>' + (noUsage() ? '' : '<td class="cellcost">' + costHTML(g.cost, g.tok) + '</td>') + '</tr>').join('') +
+    '</table></section>' + (noUsage() ? '' : '<section class="card"><h3>预估金额最高的子代理</h3><table class="tbl"><tr><th>任务</th><th>模型</th><th>步数</th><th class="r">预估金额</th></tr>' +
     topAgents.map(a => '<tr><td>' + agentLink(a.id, clip(a.desc, 36)) + '</td><td>' + agentChip(a.model, a.fam, a.effort) + '</td><td>' + a.nsteps + '</td><td class="cellcost">' + costHTML(a.cost, a.tok) + '</td></tr>').join('') +
-    '</table></section></div>' + priceFootnote();
+    '</table></section>') + '</div>' + priceFootnote();
 }

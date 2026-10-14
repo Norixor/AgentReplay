@@ -15,6 +15,7 @@ function fmtMoney(c) { return c <= 0 ? '$0.00' : c < 0.01 ? '<$0.01' : c < 100 ?
 /* Known only for sessions opened (parsed) before and unchanged since; otherwise empty. */
 function costCell(r) {
   if (r.cost == null) return '';
+  if ((SOURCES[r.tool] || {}).noUsage) return '<span class="dim" title="该来源不在本地记录 token 用量，没有金额">—</span>';
   return '<span class="mny"' + (r.unp ? ' title="' + r.unp + ' 步模型未定价，未计入金额"' : '') + '>' + esc(fmtMoney(r.cost)) + (r.unp ? '*' : '') + '</span><span class="tkv">' + fmtTok(r.tok) + ' token</span>';
 }
 function dayStart(s) { return s ? new Date(s + 'T00:00:00').getTime() : null; }

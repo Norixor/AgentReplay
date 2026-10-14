@@ -30,7 +30,7 @@ function focusHeader(a, order) {
     '<p class="dim tf-meta">' + toolChip() + ' ' + (par ? '由 <a href="' + focusHash(par.id) + '">' + esc(par.id === 'main' ? '主代理' : clip(par.desc, 40)) + '</a> 派出（' + (a.bg ? '后台' : '前台') + (a.type ? ' · ' + esc(a.type) : '') + '）' : '会话的主代理') +
     ' · <a href="' + jumpHash(a.id) + '">在回看中打开详情 →</a></p>' +
     '<div class="stats tf-stats">' + stat('时长', fmtDur(a._e - a._s), fmtTS(a._s) + ' → ' + fmtTS(a._e)) + stat('步数', a.nsteps) +
-    stat('预估金额', '<span title="' + esc(tokTitle(a.tok)) + '">' + moneyH(a.cost) + '</span>', fmtTok(tokSum(a.tok)) + ' token · 输出 ' + fmtTok(a.tok.out) + ' · 缓存读 ' + fmtTok(a.tok.cr) + (a.nUnp ? ' · ' + a.nUnp + ' 步未定价' : '')) + stat('上下文峰值', fmtTok(peak)) +
+    usageStat('预估金额', '<span title="' + esc(tokTitle(a.tok)) + '">' + moneyH(a.cost) + '</span>', fmtTok(tokSum(a.tok)) + ' token · 输出 ' + fmtTok(a.tok.out) + ' · 缓存读 ' + fmtTok(a.tok.cr) + (a.nUnp ? ' · ' + a.nUnp + ' 步未定价' : '')) + (noUsage() && !peak ? '' : stat('上下文峰值', fmtTok(peak))) +
     stat('交回状态', esc(focusHandback(a))) + stat('模型 · 强度', esc(a.model || a.fam) + (a.effort ? ' · ' + esc(a.effort) : '')) + '</div>';
 }
 

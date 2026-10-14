@@ -19,6 +19,10 @@ for (const file of process.argv.slice(2)) {
       "SUBS.forEach((a, i) => { SX.map[a.id] = {state: st[i % 5], runMs: 65000, elapsed: 4000, tool: 'Bash', desc: 'npm test', sum: 'npm test', doneTs: Date.now(), why: 'x'}; }); " +
       "const r = {}; renderAgents(rootStub(r)); const r2 = {}; renderAgent(rootStub(r2), SUBS[0].id, null); SX.phase = 'static'; return markup(r) + markup(r2); })()"],
     ['single-agent time view', "(() => { const r = {}; renderTimelineFocus(rootStub(r), SUBS[0].id); return markup(r); })()"],
+    // a source that records no token usage (meta.source.noUsage): no view shows an amount or a usage token count (the size before a
+    // context compaction is a context figure, not usage)
+    ['no-usage mode', "(() => { SRC.noUsage = true; try { const rs = [{}, {}, {}, {}, {}]; renderOverview(rootStub(rs[0])); renderAgents(rootStub(rs[1])); renderAgent(rootStub(rs[2]), 'main', null); " +
+      "renderAgent(rootStub(rs[3]), SUBS[0].id, null); renderTimelineFocus(rootStub(rs[4]), SUBS[0].id); return rs.map(markup).join(''); } finally { SRC.noUsage = false; } })()"],
   ];
   if (process.env.SNAPSHOT) {  // a real /api/live snapshot: paint the live tab (cards, rate card) from it
     views.push(['live tab', "(() => { LV.data = " + fs.readFileSync(process.env.SNAPSHOT, 'utf8') + "; LV.fetchedAt = Date.now(); const r = {}; LV.root = rootStub(r); paintLive(); return markup(r); })()"]);
@@ -32,6 +36,8 @@ for (const file of process.argv.slice(2)) {
       const out = String(page.run(code));
       if (process.env.DUMP_DIR) fs.writeFileSync(process.env.DUMP_DIR + '/' + file.split('/').pop() + '.' + name.replace(/\W+/g, '_') + '.html', out);  // for inspecting the markup
       const m = bad.exec(out.replace(/<style[\s\S]*?<\/style>/g, ''));
+      const leak = name === 'no-usage mode' ? /\$[0-9][0-9,]*\.[0-9]{2}|<\$0\.01|(?<!压缩前 [0-9.]*)[0-9][kM]? token\b/.exec(out.replace(/<style[\s\S]*?<\/style>/g, '')) : null;
+      if (leak) { console.log('FAIL ' + file + ' [' + name + ']: amount or token count shown near: ' + out.slice(Math.max(0, leak.index - 60), leak.index + 60).replace(/\s+/g, ' ')); failed++; }
       if (!out || m) { console.log('FAIL ' + file + ' [' + name + ']: ' + (out ? 'found "' + m[0] + '" near: ' + out.slice(Math.max(0, m.index - 60), m.index + 60).replace(/\s+/g, ' ') : 'empty output')); failed++; }
     } catch (e) { console.log('FAIL ' + file + ' [' + name + ']: ' + String(e && e.message || e) + ' @ ' + String((e && e.stack) || '').split('\n').filter(l => /at /.test(l)).slice(0, 2).join(' | ')); failed++; }
   }

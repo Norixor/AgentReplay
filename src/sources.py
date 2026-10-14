@@ -39,6 +39,8 @@ Attributes
                     live() and keeps working.
   page              replay-page hints, embedded with label, color and live as meta.source (render.py; replay.js):
                       fams   bool: colour models by the Claude family names (opus, sonnet, ...) instead of meta.models
+                      noUsage bool: the source records no token usage, so there is nothing to price; the pages leave out every
+                             amount and token figure instead of showing $0.00 / 0 token (the list chip carries it too)
                       notes  source-specific explanations, each optional (a missing note shows nothing):
                              why (where call reasons come from), mainSteps (what one main-agent step is), hooks (how hook
                              blocks are detected), hooksStop (suffix shown when totals.stopBlocks > 0, "{n}" = the count),
@@ -162,7 +164,10 @@ class Source:
 
     def chip(self):
         """What the list page needs to show and filter this source."""
-        return {"id": self.id, "label": self.label, "color": self.color}
+        chip = {"id": self.id, "label": self.label, "color": self.color}
+        if self.page.get("noUsage"):
+            chip["noUsage"] = True
+        return chip
 
     def page_meta(self):
         """meta.source of the replay page: label, chip colour and the page hints."""

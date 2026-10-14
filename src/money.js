@@ -5,9 +5,17 @@
 
 const TOK_PARTS = [['in', '未缓存输入'], ['cw5', '缓存写入（5 分钟）'], ['cw1', '缓存写入（1 小时）'], ['cr', '缓存读取'], ['out', '输出']];
 
+/* A source that records no token usage (meta.source.noUsage, Cursor) has nothing to price: every amount and token figure
+ * is left out or shown as "—", never as "$0.00" or "0 token". */
+function noUsage() { return typeof SRC !== 'undefined' && !!SRC.noUsage; }
+/* A stat tile for amounts / tokens: omitted for such a source. */
+function usageStat(label, value, sub) { return noUsage() ? '' : stat(label, value, sub); }
+/* The context size of a step or an agent: only the last step of a no-usage source has one, the others show "—". */
+function ctxText(n) { return noUsage() && !n ? '—' : fmtTok(n); }
+
 /* Under one cent "<$0.01", under $100 two decimals, above that whole dollars with thousands separators. */
 function fmtMoney(c) {
-  if (c == null) return '—';
+  if (c == null || noUsage()) return '—';
   if (c <= 0) return '$0.00';
   if (c < 0.01) return '<$0.01';
   return c < 100 ? '$' + c.toFixed(2) : '$' + Math.round(c).toLocaleString('en-US');
@@ -38,6 +46,7 @@ function stepNote(s) {
 /* Amount plus tokens. opts.inline puts them on one line ("$1.20 · 12.3k"), otherwise the tokens sit under the amount. */
 function costHTML(cost, tok, opts) {
   opts = opts || {};
+  if (noUsage()) return '<span class="mny unp" title="' + esc((SRC.label || '该来源') + ' 不在本地记录 token 用量，没有金额') + '">—</span>';
   const title = esc(tokTitle(tok, opts.note));
   const money = cost == null ? '<span class="mny unp" title="' + title + '">未定价</span>' : '<span class="mny" title="' + title + '">' + moneyH(cost) + '</span>';
   const tk = '<span class="tkv" title="' + title + '">' + fmtTok(tokSum(tok)) + (opts.unit === false ? '' : ' token') + '</span>';
@@ -48,6 +57,7 @@ function stepCostHTML(s, opts) { return costHTML(s.cost, s.tok, Object.assign({n
 /* "N 步模型未定价，未计入金额" and similar, for the aggregates (an agent, the session). */
 function unpricedNote(x) {
   const p = [];
+  if (noUsage()) return '';
   if (x.nUnp) p.push(x.nUnp + ' 步模型未定价，未计入金额' + (x.unpModels && x.unpModels.length ? '（' + x.unpModels.map(esc).join('、') + '）' : ''));
   if (x.nLocal) p.push(x.nLocal + ' 步为本地模型，金额记为 0');
   if (x.nFast) p.push(x.nFast + ' 步为快速模式，按标准价计');

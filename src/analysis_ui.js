@@ -14,7 +14,7 @@ function anaRich(s) { return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>'); }
 
 /* Amount of a finding: priced steps summed; the steps without a price are named, not guessed. */
 function anaCostText(c, none) {
-  if (none || !c || !c.steps) return '—';
+  if (none || !c || !c.steps || noUsage()) return '—';
   if (!c.priced) return '无价格';
   return fmtMoney(c.cost) + (c.nUnp ? '（另有 ' + c.nUnp + ' 步无价格，未计入）' : '');
 }
@@ -41,7 +41,7 @@ function anaStats(S, d) {
     stat('等你回复', fmtDur(sp.user), anaPct(sp.user, sp.total)) +
     stat('空等子代理', fmtDur(sp.subwait), anaPct(sp.subwait, sp.total) + (sp.poll ? ' · 另有轮询等待 ' + fmtDur(sp.poll) : '')) +
     stat('同时运行的代理', '平均 ' + c.avg.toFixed(1) + ' · 最高 ' + c.max, S.rows.length + ' 个代理参与') +
-    stat('预估金额', costHTML(S.cost, S.tok, {inline: true}), (S.nUnp ? S.nUnp + ' 步未定价，未计入金额' : '含全部代理')) + '</div>';
+    usageStat('预估金额', costHTML(S.cost, S.tok, {inline: true}), (S.nUnp ? S.nUnp + ' 步未定价，未计入金额' : '含全部代理')) + '</div>';
 }
 
 /* ---- critical path */
@@ -73,7 +73,7 @@ function anaPathHTML(d) {
 /* ---- waste patterns */
 function anaEvidRow(f, e) {
   const text = f.id === 'ctx' ? '上下文 ' + fmtTok(e.ctx) + ' token' : e.text;
-  const money = e.step && f.id !== 'subwait' ? (e.step.cost == null ? '无价格' : fmtMoney(e.step.cost)) : '';
+  const money = e.step && f.id !== 'subwait' && !noUsage() ? (e.step.cost == null ? '无价格' : fmtMoney(e.step.cost)) : '';
   return '<li class="ana-ev" data-ja="' + esc(e.agentId) + '|' + Math.round(e.ts) + '|' + (e.n == null ? '' : e.n) + '" tabindex="0" role="link"><span class="t">' + fmtClock(e.ts) + (e.n != null ? ' <span class="dim">#' + e.n + '</span>' : '') +
     '</span><span class="who">' + esc(clip(anaName(e.agentId), 24)) + '</span><span class="what"><span class="mono">' + esc(text) + '</span>' + (e.sub ? '<span class="dim"> ' + esc(e.sub) + '</span>' : '') +
     '</span><span class="num">' + (f.ms == null ? '' : anaDurText(e.ms)) + (money ? ' · ' + money : '') + '</span></li>';

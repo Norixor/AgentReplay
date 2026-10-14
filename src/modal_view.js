@@ -92,7 +92,7 @@ function mdAgentHead(a) {
   return '<div class="md-chips">' + (isMain ? '' : agentChip(a.model, a.fam, a.effort) + ' <span class="dim">' + (a.bg ? '后台' : '前台') + (a.type ? ' · ' + esc(a.type) : '') + '</span> ') +
     (isMain ? '' : '<b>状态</b> ' + sxStatusHTML(a, true)) + '</div>' +
     '<div class="stats md-stats">' + stat('开始 → 结束', esc(fmtTS(a.start)), '→ ' + esc(fmtTS(a.end))) + stat('时长', fmtDur(f.dur)) + stat('步数', a.nsteps) +
-    stat('预估金额', '<span title="' + esc(tokTitle(a.tok)) + '">' + moneyH(a.cost) + '</span>', fmtTok(tokSum(a.tok)) + ' token') + stat('上下文峰值', fmtTok(f.peak)) + '</div>';
+    usageStat('预估金额', '<span title="' + esc(tokTitle(a.tok)) + '">' + moneyH(a.cost) + '</span>', fmtTok(tokSum(a.tok)) + ' token') + (noUsage() && !f.peak ? '' : stat('上下文峰值', fmtTok(f.peak))) + '</div>';
 }
 
 function mdAgentRecent(a, openKeys) {
@@ -113,7 +113,7 @@ function mdAgentHTML(r) {
     '<div data-md-live="head">' + mdAgentHead(a) + '</div><div class="md-ls lsbar" id="md-ls"></div>' +
     '<div class="md-cols"><section class="card"><h3>时间：按类别</h3>' + (by ? timeCatBars(by) : '<p class="dim">没有可统计的时间。</p>') + '</section>' +
     (kids.length ? '<section class="card"><h3>派出的子代理（' + kids.length + '）</h3><ul class="md-kids">' + kids.map(c => '<li>' + agentChip(c.model, c.fam, c.effort) + ' ' + mdAgentRef(c.id, clip(c.desc, 50)) +
-      ' <span class="dim">' + c.nsteps + ' 步 · ' + moneyH(c.cost) + '</span></li>').join('') + '</ul></section>' : '') + '</div>' +
+      ' <span class="dim">' + c.nsteps + ' 步' + (noUsage() ? '' : ' · ' + moneyH(c.cost)) + '</span></li>').join('') + '</ul></section>' : '') + '</div>' +
     (isMain ? '' : mdFold('简报（全文）', a.briefing, 'brief') + mdFold('交回报告（全文）', a.report, 'report')) +
     '<div data-md-live="recent">' + mdAgentRecent(a) + '</div>';
 }

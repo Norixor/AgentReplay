@@ -107,7 +107,7 @@ function rowHTML(s, c, ci, first, a, idx) {
     '<div class="c-cmd" title="' + esc(clip(c && c.inp ? c.inp : sum, 1200)) + '">' + esc(sum) + '</div>' +
     '<div class="c-dur">' + durHTML(c) + '</div>' +
     '<div class="c-cost">' + (first ? stepCostHTML(s, {unit: false}) : '') + '</div>' +
-    '<div class="c-ctx">' + (first ? fmtTok(s.ctx) : '') + '</div>' +
+    '<div class="c-ctx">' + (first ? ctxText(s.ctx) : '') + '</div>' +
     '<div class="c-st">' + statusHTML(c) + '</div></div></div>';
 }
 
@@ -150,6 +150,8 @@ function detailCallHTML(c) {
 /* Model, token parts, context, amount and timing of a step, as one line. */
 function detailTokHTML(s) {
   const t = s.tok, note = stepNote(s);
+  if (noUsage()) return '<div class="dim tokline">模型 ' + esc(s.model || s.fam) + (s.effort ? '·' + esc(s.effort) : '') + ' · 上下文 ' + ctxText(s.ctx) +
+    (s.think ? ' · 思考 ' + fmtDur(s.think) : '') + ' · 模型间隔 ' + fmtDur(s.gap) + '</div>';
   return '<div class="dim tokline">模型 ' + esc(s.model || s.fam) + (s.effort ? '·' + esc(s.effort) : '') + ' · 未缓存输入 ' + t.in + ' · 缓存写入 ' + (t.cw5 + t.cw1) +
     (t.cw1 ? '（5 分钟 ' + t.cw5 + ' / 1 小时 ' + t.cw1 + '）' : '') + ' · 缓存读取 ' + t.cr + ' · 输出 ' + t.out + (t.rsn != null ? '（含推理 ' + t.rsn + '）' : '') +
     ' · 上下文 ' + fmtTok(s.ctx) + ' · 预估金额 ' + (s.cost == null ? '未定价' : moneyH(s.cost)) + (note ? '（' + esc(note) + '）' : '') +
