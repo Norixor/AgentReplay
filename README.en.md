@@ -1,7 +1,7 @@
 <h1 align="center">AgentReplay</h1>
 <p align="center">
   <strong>See what every agent did, why it did it, and what it cost.</strong><br />
-  A local, read-only viewer for Claude Code, Codex, Gemini CLI and opencode sessions. It turns long multi-agent runs into an overview, a timeline, a step-by-step replay with the reason behind each call, per-sub-agent details, and a live monitor for sessions that are still running. No dependencies, nothing leaves your machine.
+  A local, read-only viewer for Claude Code, Codex, Gemini CLI, opencode and Cursor sessions. It turns long multi-agent runs into an overview, a timeline, a step-by-step replay with the reason behind each call, per-sub-agent details, and a live monitor for sessions that are still running. No dependencies, nothing leaves your machine.
 </p>
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-orange" alt="Apache-2.0 license" /></a>
@@ -39,7 +39,7 @@
 
 A coding agent that runs for hours, with sub-agents of different models and effort levels, leaves a transcript that is hard to read: thousands of rows, nested agents, tool output, retries, hook blocks, context compaction. When something is slow or expensive, the questions are always the same: what did each agent do, why did it make that call, how long did it wait, and what did it cost (estimated)?
 
-AgentReplay answers them from the transcripts that Claude Code, Codex, Gemini CLI and opencode already write to disk. It only reads those files, starts a small web server bound to `127.0.0.1`, and shows every session in a browser. The interface is currently Simplified Chinese only; the session content itself is shown as recorded, in any language.
+AgentReplay answers them from the transcripts that Claude Code, Codex, Gemini CLI, opencode and Cursor already write to disk. It only reads those files, starts a small web server bound to `127.0.0.1`, and shows every session in a browser. The interface is currently Simplified Chinese only; the session content itself is shown as recorded, in any language.
 
 ## Requirements
 
@@ -83,7 +83,7 @@ The browser opens the session list at `http://127.0.0.1:8790/`. Click a session 
 
 ## Key features
 
-- **Session list**: every Claude Code, Codex, Gemini CLI and opencode session on the machine in one table, with project, model, size, estimated amount (for sessions already opened), sub-agent count and an "in progress" marker; filter by source, project, status or keyword, and sort by any column.
+- **Session list**: every Claude Code, Codex, Gemini CLI, opencode and Cursor session on the machine in one table, with project, model, size, estimated amount (for sessions already opened), sub-agent count and an "in progress" marker; filter by source, project, status or keyword, and sort by any column.
 - **Estimated amount and tokens**: every place that shows cost uses an **estimated amount in USD** at official API list prices, with the token count beside it; hover for the breakdown (input, cache write, cache read, output). The price table is `src/prices.json`, which records its sources, read date and pricing rules (see [Configuration](#configuration)). Models without a price are left out of the amounts; local models count as 0. Subscription plans are not billed per token, so the amount is for comparison only.
 - **Overview**: totals for the whole run split by agent, model and effort, and by activity (read, test, write, git, wait, agent), plus hook blocks, compactions, long commands and merges. A "time by category" block shows where the time went, in two views: the main agent (wall clock) and all agents added up.
 - **Timeline**: all agents on one time axis, so parallel work, waiting and idle gaps are visible at a glance.
@@ -152,7 +152,12 @@ The browser opens the session list at `http://127.0.0.1:8790/`. Click a session 
 - Sees: user messages, every model response (one assistant message = one step) with its token usage including reasoning, cache reads and cache writes, tool calls with start and end times (commands, reads and writes, searches, web fetches; failures and non-zero exit codes included), `reasoning` summaries, sub-sessions linked through `parent_id` (started by the `task` tool) with their briefing, interruptions and failed model calls, session title and archived state.
 - Limits: there is no live page (the database is opencode's own working store; it is only read here, not polled). Amounts are computed by matching the model name against the `claude`, `codex` and `gemini` price sections; models that match none of them (and `org/model` names served through a gateway) have no amount while their tokens are still counted. The `cost` opencode records itself is often 0 and is not used. When opencode stores a large tool output separately under `tool-output/`, the page only has the part kept in the database. The database is opened read-only, but for a WAL-mode database SQLite may create the `-wal` / `-shm` helper files next to it; the content is never modified.
 
-The formats are internal details of the tools (opencode's table layout most of all) and may change; a new version can break parsing until it is updated here.
+**Cursor** (`<cursor dir>/User/globalStorage/state.vscdb`, one SQLite database of the Cursor editor holding the chats of every workspace)
+
+- What you can see: user messages, each model response (the record stores the text, the thinking and every tool call as separate messages; they are merged into one step per response), thinking summaries (Cursor does not always keep the text, but it keeps the duration), tool calls (reads, writes, searches, terminal commands, including failed, cancelled and refused calls; a non-zero exit code of a terminal command counts as a failure), sub-agent chats linked through the `task_v2` tool (dispatch prompt and returned result are readable, nesting included), model and effort, and the project folder (derived from the workspace records, left empty when it cannot be told).
+- Limits: there is no live page (the database is Cursor's own working store; it is only read here, not polled). Cursor does not record token usage locally, so there are no tokens and no amounts: every step shows "unpriced", and the `$0.00` and `0 token` in the totals only mean there is no data. Times are estimates: a message is stamped when it started streaming, a tool call ends at its recorded finish time or, when there is none, at the next message's stamp (so a duration may be too long); the thinking time is taken from the record. Only chats that carry per-message times are listed: Cursor versions before about 2025-12 stored none, a timeline cannot be built from them, and they are not shown; the empty placeholder chats Cursor creates at start-up are not listed, and neither are sub-agent chats (they are folded into their parent chat). The database is opened read-only. Besides the chat tables it holds sign-in credentials: the tool queries only chat and message rows, never anything else, and drops the encryption-key fields of a chat record. For a WAL-mode database SQLite may create `-wal` and `-shm` helper files next to it; the database content is never modified.
+
+The formats are internal details of the tools (the table layouts of opencode and Cursor most of all) and may change; a new version can break parsing until it is updated here.
 
 ## Privacy and security
 
@@ -173,10 +178,11 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 | `--codex-dir DIR` / `AGENT_REPLAY_CODEX_DIR` / `CODEX_HOME` | `~/.codex` | Codex data root (contains `sessions/`, `archived_sessions/`, `session_index.jsonl`) |
 | `--gemini-dir DIR` / `AGENT_REPLAY_GEMINI_DIR` / `GEMINI_CLI_HOME` | `~/.gemini` | Gemini CLI data root (contains `tmp/`, `projects.json`); `GEMINI_CLI_HOME` is the directory above it (the CLI creates `.gemini` inside), so the actual directory is `$GEMINI_CLI_HOME/.gemini` |
 | `--opencode-dir DIR` / `AGENT_REPLAY_OPENCODE_DIR` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | opencode data root (contains `opencode.db`, or `opencode-<channel>.db` for non-stable builds). `XDG_DATA_HOME` only applies when neither the option nor `AGENT_REPLAY_OPENCODE_DIR` is given |
+| `--cursor-dir DIR` / `AGENT_REPLAY_CURSOR_DIR` | macOS `~/Library/Application Support/Cursor`, Linux `$XDG_CONFIG_HOME/Cursor` or `~/.config/Cursor`, Windows `%APPDATA%\Cursor` | Cursor data root (the database is `User/globalStorage/state.vscdb`; project folders are derived from `User/workspaceStorage/`) |
 | `AGENT_REPLAY_HOME` | `<project>/replays` | Where exported pages and caches are written |
 | `AGENT_REPLAY_PORT` | `8790` | Port used by `agent-replay.command` only; the CLI uses `--port` |
 
-For each data root the first of these that is set wins, in the order listed: command line, `AGENT_REPLAY_*`, the tool's own variable (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME`), then the default. On Windows the defaults are `%USERPROFILE%\.claude`, `%USERPROFILE%\.codex` and `%USERPROFILE%\.gemini` (Windows is untested).
+For each data root the first of these that is set wins, in the order listed: command line, `AGENT_REPLAY_*`, the tool's own variable (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME`), then the default. On Windows the defaults are `%USERPROFILE%\.claude`, `%USERPROFILE%\.codex`, `%USERPROFILE%\.gemini` and `%APPDATA%\Cursor` (Windows is untested).
 
 ### `src/prices.json`
 
@@ -213,10 +219,10 @@ Thresholds for the live monitor; changes apply without a restart. Times are in s
 ## CLI reference
 
 ```text
-agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
+agent-replay serve [--port N] [--no-open] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR] [--cursor-dir DIR]
 agent-replay demo  [--port N] [--no-open]
-agent-replay <session> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
-agent-replay --list [PROJECT] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR]
+agent-replay <session> [-o FILE] [--output-chars N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR] [--cursor-dir DIR]
+agent-replay --list [PROJECT] [-n N] [--claude-dir DIR] [--codex-dir DIR] [--gemini-dir DIR] [--opencode-dir DIR] [--cursor-dir DIR]
 ```
 
 - `serve`: start the web app (default port 8790). If an instance already answers on that port it is reused; if the port is taken by something else, the next free port is used.
@@ -230,8 +236,8 @@ Transcripts do not contain the model's private reasoning, so the page does not c
 
 1. **Trigger**: the events right before the step: your message, a hook block or hook feedback, a sub-agent hand-back, a background task notice, a compaction.
 2. **What the agent said**: the text in the same response before the call, or in the previous response (marked as such).
-3. **The call's own description**: the `description` of a Bash call, a Codex justification or title, the `description` of a Gemini shell call, the `description` in an opencode tool input.
-4. **Reasoning summary**: Codex reasoning summaries, when the rollout has them; Gemini thought summaries (the subject and description in `thoughts`: summaries the model wrote, not the raw thinking; some responses have none); opencode `reasoning` parts (some models expose no text). Text a Gemini message carries before its calls counts as the agent's explanation.
+3. **The call's own description**: the `description` of a Bash call, a Codex justification or title, the `description` of a Gemini shell call, the `description` in an opencode tool input, the `commandDescription` of a Cursor terminal command (and the explanation fields the model supplies).
+4. **Reasoning summary**: Codex reasoning summaries, when the rollout has them; Gemini thought summaries (the subject and description in `thoughts`: summaries the model wrote, not the raw thinking; some responses have none); opencode `reasoning` parts (some models expose no text); Cursor `thinking` (some records have only the duration, no text). Text a Gemini or Cursor response carries before its calls counts as the agent's explanation (a Cursor response stores its text, thinking and each tool call as separate messages, merged into one step by call id).
 5. **Dispatch parameters**: for sub-agents, model, effort, background or not, and the briefing. A briefing line that starts with `选档理由：` ("reason for the model choice") is highlighted as the dispatch reason; this is a convention, and briefings without it are shown normally.
 6. If nothing else exists, the step is shown as following up on the result of the previous step.
 
@@ -254,6 +260,7 @@ src/                    all source, grouped by responsibility:
 | Sources | `sources.py`, `source_claude.py`, `source_codex.py`, `source_gemini.py`, `scan_util.py` | source registry and adapter contract (a new source = one adapter module + one line in `sources.BUILTIN`); Claude Code, Codex and Gemini CLI scanning, list rows, session trees, parse entry, live feed (none for Gemini), pricing and data roots |
 | Parsing | `parse.py`, `parse_codex.py`, `codex_scan.py`, `codex_calls.py`, `parse_gemini.py`, `gemini_scan.py`, `gemini_calls.py`, `index.py`, `common.py`, `redact.py` | Claude Code, Codex and Gemini CLI transcripts -> one replay model; session index; categories, merge detection, totals; secret masking |
 | opencode | `source_opencode.py`, `opencode_scan.py`, `opencode_calls.py`, `parse_opencode.py` | opencode source: read-only SQLite, sessions addressed by virtual paths `<db>#<session id>` whose `stat` reflects changes; list scan, session tree, messages and parts -> replay model, pricing by model name |
+| Cursor | `source_cursor.py`, `cursor_scan.py`, `cursor_calls.py`, `parse_cursor.py` | Cursor source: read-only SQLite (only chat and message rows are queried), sessions addressed by virtual paths `<db>#<chat id>` whose `stat` reflects changes; listing rules, chat tree, messages -> replay model; no tokens or amounts |
 | Pricing | `prices.py`, `prices.json`, `costcache.py` | the price table, token vectors and amount display rules (per-step pricing lives in each source adapter); cached amounts for the session list |
 | Server | `server.py`, `render.py`, `boot.js`, `template.html`, `loading.html` | local HTTP app, background parse jobs, page cache, self-restart after a source change; assemble the single-file page; page routing and startup |
 | Live | `live.py`, `live_claude.py`, `live_codex.py`, `live.json`, `live.js`, `live_steps.py`, `live_steps.js` | incremental state and alerts for running sessions; the live page; incremental steps for replay pages |
@@ -297,8 +304,9 @@ python3 scripts/check.py
 - Codex sub-agent briefings are encrypted in the rollout, so only the dispatch parameters can be shown.
 - Gemini CLI has no live page; its times are estimated from timestamps (parallel tools overlap, current CLI versions record no thinking time); dated price changes announced in the price table are applied by message date only, and models missing from the table are left out of the amounts.
 - Windows is untested.
-- Gemini CLI and opencode have no live page; opencode also depends on its internal SQLite table layout, which may change between opencode versions.
-- WorkBuddy and Cursor sessions are not supported yet. Only registered sources (Claude Code, Codex, Gemini CLI, opencode) are read; a new source needs an adapter module following the contract in `src/sources.py`.
+- Gemini CLI, opencode and Cursor have no live page; opencode and Cursor also depend on their internal SQLite table layouts, which may change between versions.
+- Cursor records no tokens locally, so it has no amounts; its times are estimates; chats of older versions (no per-message times) are not shown.
+- WorkBuddy sessions are not supported yet. Only registered sources (Claude Code, Codex, Gemini CLI, opencode, Cursor) are read; a new source needs an adapter module following the contract in `src/sources.py`.
 - Amounts are estimates at official API list prices, not a bill; models missing from the price table are left out of the amounts.
 
 ## Troubleshooting

@@ -166,6 +166,17 @@ def check_opencode():
         report(True, "opencode source tests passed (%d cases)" % len(cases))
 
 
+def check_cursor():
+    """Cursor source tests on synthetic SQLite databases (scripts/test_cursor.py)."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import test_cursor
+    cases, bad = test_cursor.run()
+    for name in bad:
+        report(False, "cursor: " + name)
+    if not bad:
+        report(True, "Cursor source tests passed (%d cases)" % len(cases))
+
+
 def raw_claude_messages(path):
     """[(model, usage)] of the main transcript in order of first appearance, one entry per message id (the row with the most output)."""
     order, best = [], {}
@@ -466,6 +477,7 @@ def main():
     check_gemini()
     check_sources()
     check_opencode()
+    check_cursor()
     tmp =tempfile.mkdtemp(prefix="agent-replay-check-")
     try:
         check_render(tmp)
