@@ -14,7 +14,7 @@ JS_FILES = ("replay.js", "util.js", "modal_model.js", "modal_view.js", "modal.js
             "graph_layout.js", "graph_node.js", "graph_fx.js", "graph_hud.js", "graph_view.js",
             "route_model.js", "route_layout.js", "route_nav.js", "route_view.js", "route_live.js", "live.js",
             "term_format.js", "term.js", "live_steps.js", "steps_view.js",
-            "analysis_path.js", "analysis_detect.js", "analysis_ui.js", "analysis.js", "boot.js")
+            "analysis_path.js", "analysis_detect.js", "analysis_bars.js", "analysis_ui.js", "analysis.js", "boot.js")
 CSS_FILES = ("replay.css", "polish.css", "timeline.css", "tl_focus.css", "analysis.css", "live.css", "term.css", "live_steps.css", "graph.css", "route.css", "modal.css")
 BACK_LINK = '<a class="back" href="/" title="回到会话列表">← 会话列表</a>'
 _CUT_MARK = re.compile(r"\n… \[已省略 \d+ 字符\]$")

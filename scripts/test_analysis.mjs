@@ -1,4 +1,4 @@
-// Unit test for the time-analysis tab (src/analysis_core.js, analysis_path.js, analysis_detect.js) on constructed data:
+// Unit test for the time-analysis tab (src/analysis_core.js, analysis_path.js, analysis_detect.js, analysis_bars.js) on constructed data:
 // a main agent and two sub-agents. Usage: node scripts/test_analysis.mjs   (exits non-zero on the first failed assertion)
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,9 +7,9 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const code = ['timeseg.js', 'analysis_core.js', 'analysis_path.js', 'analysis_detect.js']
+const code = ['timeseg.js', 'analysis_core.js', 'analysis_path.js', 'analysis_detect.js', 'analysis_bars.js']
   .map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8').replace(/^'use strict';/, '')).join('\n');
-const L = vm.runInNewContext(code + '\n;({anaBuildScope, anaCriticalPath, anaPathBlocks, anaDetect, anaCostSum, anaConcurrency, repeatGroups, normStr})', {});
+const L = vm.runInNewContext(code + '\n;({anaBuildScope, anaCriticalPath, anaPathBlocks, anaDetect, anaCostSum, anaConcurrency, repeatGroups, normStr, anaCatRows, anaPathCats, anaPathAgentRuns, anaLabelTier})', {});
 
 const S = x => x * 1000;
 let N = 0;
@@ -72,6 +72,27 @@ const before = P.pieces.filter(p => p.agentId === 'main' && p.t1 <= S(945));
 assert.ok(before.length && before[before.length - 1].t1 >= S(935), 'back in the parent at the dispatch moment');
 assert.ok(P.top.length <= 5 && P.top[0].t1 - P.top[0].t0 >= P.top[P.top.length - 1].t1 - P.top[P.top.length - 1].t0);
 assert.ok(L.anaPathBlocks(P, 0.004).length <= 260);
+
+// ---- colour card and bars (analysis_bars.js): the data behind them
+const plain = x => JSON.parse(JSON.stringify(x));  // values from the vm context have another realm's prototypes
+const mainBy = sc.byId.main.T.by, cr = L.anaCatRows(mainBy);
+assert.equal(cr.total, sc.byId.main.T.T1 - sc.byId.main.T.T0, 'the categories of one agent add up to its lifetime');
+assert.equal(cr.rows.reduce((m, r) => m + r.ms, 0), cr.total);
+assert.ok(Math.abs(cr.rows.reduce((m, r) => m + r.frac, 0) - 1) < 1e-9, 'shares add up to 100 %');
+assert.ok(cr.rows.every(r => r.ms > 0), 'categories without time are left out');
+cr.rows.forEach((r, i) => { if (i) assert.ok(cr.rows[i - 1].ms >= r.ms, 'largest first'); });
+assert.deepEqual(plain(L.anaCatRows({ read: 5, test: 10, idle: 5, user: 0 }).rows.map(r => r.k)), ['test', 'read', 'idle'], 'ties keep the category order');
+assert.deepEqual(plain(L.anaCatRows({})), { total: 0, rows: [] });
+const pc = L.anaPathCats(P);
+assert.equal(Object.values(pc).reduce((m, v) => m + v, 0), P.total, 'path categories add up to the path length');
+const blocks = L.anaPathBlocks(P, 0.004), runs = L.anaPathAgentRuns(blocks);
+assert.equal(runs.reduce((m, r) => m + r.d, 0), blocks.reduce((m, b) => m + b.d, 0), 'the agent layer covers the same time as the category layer');
+assert.equal(runs.reduce((m, r) => m + r.n, 0), blocks.length);
+runs.forEach((r, i) => { if (i) { assert.notEqual(r.agentId, runs[i - 1].agentId, 'neighbouring runs are different agents'); assert.notEqual(r.shade, runs[i - 1].shade, 'and differ in shade'); } });
+assert.deepEqual(plain(runs.map(r => r.agentId)), ['main', 'B', 'main'], 'main -> the last sub-agent to hand back -> main');
+const toy = L.anaPathAgentRuns([{ agentId: 'm', t0: 0, t1: 1, d: 1 }, { agentId: 'm', t0: 1, t1: 3, d: 2 }, { agentId: 'x', t0: 3, t1: 4, d: 1 }, { agentId: 'm', t0: 4, t1: 5, d: 1 }]);
+assert.deepEqual(plain(toy.map(r => [r.agentId, r.t0, r.t1, r.d, r.shade])), [['m', 0, 3, 3, 0], ['x', 3, 4, 1, 1], ['m', 4, 5, 1, 0]]);
+assert.deepEqual([0.2, 0.13, 0.08, 0.05, 0.049].map(f => L.anaLabelTier(f)), [2, 2, 1, 1, 0], 'wide pieces get name and share, narrow ones only colour');
 // a foreground dispatch alone puts that sub-agent on the path
 const solo = agent('main', 0, 320, [turn({ k: 'human', ts: 0 }, [
   step(95, [call(100, 200, 'Agent X', 'agent', { name: 'Agent', agent: 'X', disp: {} })]), step(305, [], { fin: S(320), stop: 'end_turn' })])]);

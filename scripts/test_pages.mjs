@@ -24,6 +24,12 @@ for (const file of process.argv.slice(2)) {
     ['no-usage mode', "(() => { SRC.noUsage = true; try { const rs = [{}, {}, {}, {}, {}]; renderOverview(rootStub(rs[0])); renderAgents(rootStub(rs[1])); renderAgent(rootStub(rs[2]), 'main', null); " +
       "renderAgent(rootStub(rs[3]), SUBS[0].id, null); renderTimelineFocus(rootStub(rs[4]), SUBS[0].id); return rs.map(markup).join(''); } finally { SRC.noUsage = false; } })()"],
   ];
+  // time-analysis tab: renderAnalysis puts its markup into a detached host the stub does not collect, so the cards are
+  // assembled here as well (the same functions renderAnalysis concatenates)
+  const anaCards = id => "(() => { const r = {}; renderAnalysis(rootStub(r), " + id + "); const d = anaData(" + id + " || 'main'); return anaHeader(" + id + " || 'main') + " +
+    "anaStats(d.scope, d) + anaWhereHTML(d) + anaPathHTML(d) + anaFindingsHTML(d) + anaTopSteps(d) + anaRepeatTable(d) + anaAgentTable(d); })()";
+  views.push(['time analysis', anaCards('null')], ['time analysis of a sub-agent', anaCards('SUBS[0].id')],
+    ['no-usage time analysis', "(() => { SRC.noUsage = true; try { return " + anaCards('null') + "; } finally { SRC.noUsage = false; } })()"]);
   // the live tab of a source without token usage: a snapshot that deliberately carries amounts and tokens (a real one has zeros), so
   // any figure that is not left out shows up; the context size must stay
   const card = (id, state) => ({id, desc: id === 'main' ? '主代理' : id, model: 'm', effort: 'medium', parent: id === 'main' ? null : 'main', depth: id === 'main' ? 0 : 1, start: Date.now() - 600000,

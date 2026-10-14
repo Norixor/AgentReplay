@@ -15,19 +15,20 @@
  */
 
 const TS_ORDER = ['read', 'test', 'write', 'git', 'wait', 'agent', 'other', 'subwait', 'think', 'user', 'idle'];
-/* Names and colours of every category; colours are CSS variables (theme aware), defined in replay.css / tl_focus.css. */
+/* Names, colours and a plain-language meaning of every category; colours are CSS variables (theme aware), defined in
+ * replay.css / tl_focus.css. The meanings follow the rules above, tsCallCat and the command classifier (common.py). */
 const TS_CATS = {
-  read: {label: '读代码与文档', color: 'var(--c-read)', tool: true},
-  test: {label: '测试与检查', color: 'var(--c-test)', tool: true},
-  write: {label: '写代码', color: 'var(--c-write)', tool: true},
-  git: {label: 'git', color: 'var(--c-git)', tool: true},
-  wait: {label: '等待与轮询', color: 'var(--c-wait)', tool: true},
-  agent: {label: '派子代理', color: 'var(--c-agent)', tool: true},
-  other: {label: '其他命令', color: 'var(--c-other)', tool: true},
-  subwait: {label: '等子代理', color: 'var(--c-subwait)'},
-  think: {label: '思考或输出', color: 'var(--c-think)'},
-  user: {label: '等你回复', color: 'var(--c-user)'},
-  idle: {label: '空闲（未知）', color: 'var(--c-idle)'}
+  read: {label: '读代码与文档', color: 'var(--c-read)', tool: true, hint: '读文件、搜索、列目录这类只读命令和工具在执行'},
+  test: {label: '测试与检查', color: 'var(--c-test)', tool: true, hint: '跑测试、lint、类型检查（构建不算，归「其他命令」）'},
+  write: {label: '写代码', color: 'var(--c-write)', tool: true, hint: '改文件、写文件、装依赖这类命令和工具在执行'},
+  git: {label: 'git', color: 'var(--c-git)', tool: true, hint: 'git 或 gh 命令在执行'},
+  wait: {label: '等待与轮询', color: 'var(--c-wait)', tool: true, hint: 'sleep、until / while 轮询、tail -f 这类等待命令在执行'},
+  agent: {label: '派子代理', color: 'var(--c-agent)', tool: true, hint: '派出子代理的调用本身（后台派单只算派出的那一下）'},
+  other: {label: '其他命令', color: 'var(--c-other)', tool: true, hint: '其余命令和工具在执行，包括构建'},
+  subwait: {label: '等子代理', color: 'var(--c-subwait)', hint: '阻塞在子代理上：前台派单、等后台任务的工具，或一轮结束后子代理还在跑'},
+  think: {label: '思考或输出', color: 'var(--c-think)', hint: '模型在生成：从上一个结果或触发消息到下一条消息写完'},
+  user: {label: '等你回复', color: 'var(--c-user)', hint: '一轮结束后，等你发下一条消息'},
+  idle: {label: '空闲（未知）', color: 'var(--c-idle)', hint: '上面都解释不了的空档，例如记录里的缺口'}
 };
 const TS_WAIT_TASK = /(^|\+)(TaskOutput|AgentOutput|wait_agent|wait_threads)(\+|$)/;  // block until background work reports
 const TS_MACHINE = {notify: 1, handback: 1, agentmsg: 1, silent: 1};                    // wake-ups that are not a user message

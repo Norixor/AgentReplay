@@ -49,24 +49,15 @@ function anaPathHTML(d) {
   const P = d.path;
   if (!P.merged.length) return '<section class="card"><h3>关键路径</h3><p class="dim">没有可画的时间范围。</p></section>';
   const blocks = anaPathBlocks(P, 0.004), total = Math.max(1, P.total);
-  const seen = {};
-  blocks.forEach(b => { seen[b.cat] = 1; });
-  const bar = blocks.map(b => {
-    const w = b.d / total * 100, label = w >= 7 ? '<span>' + esc(clip(anaName(b.agentId), 14)) + '</span>' : '';
-    const tip = anaName(b.agentId) + ' · ' + TS_CATS[b.cat].label + ' · ' + fmtDur(b.d) + (b.parts > 1 ? '（' + b.parts + ' 小段合并）' : '') + ' · ' + fmtClock(b.t0);
-    return '<a class="ana-seg" href="' + focusHash(b.agentId) + '"' + anaSegAttr(b.agentId, b.t0, b.t1, b.cat) + ' style="flex:' + (b.d / total * 1000).toFixed(3) + ' 1 0;background:' + TS_CATS[b.cat].color + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + label + '</a>';
-  }).join('');
-  const legend = TS_ORDER.filter(k => seen[k]).map(k => '<span><i class="sw" style="background:' + TS_CATS[k].color + '"></i>' + esc(TS_CATS[k].label) + '</span>').join('');
   const rows = P.top.map((p, i) => {
     const a = A[p.agentId], T = d.scope.byId[p.agentId].T, dur = p.t1 - p.t0;
     const why = typeof focusReason === 'function' && p.seg ? focusReason(a, T, p.seg) : '';
-    return '<tr' + anaSegAttr(p.agentId, p.t0, p.t1, p.cat) + ' tabindex="0" role="button"><td class="num">' + (i + 1) + '</td><td>' + esc(clip(anaName(p.agentId), 40)) + '</td><td><i class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;background:' +
-      TS_CATS[p.cat].color + '"></i>' + esc(TS_CATS[p.cat].label) + '</td><td class="why">' + esc(why) + '</td><td class="r num">' + fmtDur(dur) + ' <span class="dim">' + anaPct(dur, total) + '</span></td></tr>';
+    return '<tr' + anaSegAttr(p.agentId, p.t0, p.t1, p.cat) + ' tabindex="0" role="button"><td class="num">' + (i + 1) + '</td><td>' + esc(clip(anaName(p.agentId), 40)) + '</td><td>' + anaSwatch(p.cat) + esc(TS_CATS[p.cat].label) + '</td><td class="why">' + esc(why) + '</td><td class="r num">' + fmtDur(dur) + ' <span class="dim">' + anaPct(dur, total) + '</span></td></tr>';
   }).join('');
   return '<section class="card ana-path"><h3>关键路径（共 ' + fmtDur(P.total) + '，占总时长 ' + anaPct(P.total, d.split.total) + '）</h3>' +
-    '<p class="note">决定会话结束时间的那条链：从最后一刻往回走，遇到「等子代理」就进入最后交回的那个子代理，直到它开始，再回到派单时刻。点任意一段，在弹窗里看这一段做了哪些步骤。</p>' +
-    '<div class="ana-bar" role="group" aria-label="关键路径分段横条">' + bar + '</div>' +
-    '<div class="ana-axis"><span>' + fmtClock(P.t0) + '</span><span>' + fmtClock(P.t1) + '</span></div><div class="legend ana-legend">' + legend + '</div>' +
+    '<p class="note">决定会话结束时间的那条链：从最后一刻往回走，遇到「等子代理」就进入最后交回的那个子代理，直到它开始，再回到派单时刻。上层是这条链经过的代理，下层是它在做什么；点下层任意一段，在弹窗里看这一段做了哪些步骤。</p>' +
+    anaPathBarHTML(P, blocks) +
+    '<div class="ana-axis"><span>' + fmtClock(P.t0) + '</span><span>' + fmtClock(P.t1) + '</span></div>' + anaKeyHTML(anaCatRows(anaPathCats(P)), {compact: true, aria: '关键路径上的类别与时长'}) +
     '<h3>路径上耗时最多的 ' + P.top.length + ' 段</h3><div class="tblwrap"><table class="tbl an-tbl"><colgroup><col class="an-c-n"><col class="an-c-ag"><col class="an-c-cat"><col><col class="an-c-dur2"></colgroup><thead><tr><th>#</th><th>代理</th><th>类别</th><th>原因</th><th class="r">时长</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
 }
 

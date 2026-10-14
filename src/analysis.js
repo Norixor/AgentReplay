@@ -2,7 +2,7 @@
 /* Time-analysis tab: routes #analysis (the whole session) and #analysis/agent/<id> (one agent and its descendants).
  * Why it was slow, where, and which time and money could have been saved. The numbers come from the shared time
  * segmentation (timeseg.js); the critical path is in analysis_path.js, the waste detectors in analysis_detect.js and the
- * markup of the headline / path / waste cards in analysis_ui.js. Computed once per scope when the tab is opened and
+ * markup of the headline / path / waste cards in analysis_ui.js, the colour card and the stacked bars in analysis_bars.js. Computed once per scope when the tab is opened and
  * cached on D. */
 
 const ANA_TOP_STEPS = 20, ANA_TOP_REPEATS = 15;
@@ -30,7 +30,7 @@ function anaData(rootId) {
   const rows = scope.rows.map(r => {
     const sp = anaTimeSplit(r.T), by = r.T.by;
     return {id: r.id, a: r.a, start: r.T.T0, total: sp.total, work: sp.work, wait: sp.wait, read: by.read, test: by.test, write: by.write, git: by.git, poll: by.wait,
-      agent: by.agent, other: by.other, cost: r.a.cost || 0, tok: tokSum(r.a.tok), nUnp: r.a.nUnp || 0};
+      agent: by.agent, other: by.other, by, cost: r.a.cost || 0, tok: tokSum(r.a.tok), nUnp: r.a.nUnp || 0};
   });
   return cache[rootId] = {scope, root, split: anaTimeSplit(root.T), det, path: anaCriticalPath(scope), steps: steps.slice(0, ANA_TOP_STEPS),
     repeats: repeatGroups(scope.calls).slice(0, ANA_TOP_REPEATS), rows};
@@ -72,11 +72,11 @@ function anaAgentTable(d) {
   } else rows.sort((p, q) => (ANA_SORT.dir * (q[k] - p[k])) || (p.start - q.start));
   const mark = key => (ANA_SORT.key === key && key !== 'start' ? (ANA_SORT.dir < 0 ? ' ▼' : ' ▲') : '');
   const cols = ANA_COLS.filter(c => !(c[4] === 'usage' && noUsage()));
-  const head = cols.map(c => '<th class="' + (c[2] === 'l' ? '' : 'r ') + 'ana-sort" data-sort="' + c[0] + '" tabindex="0" role="button"' + (c[3] ? ' title="' + esc(c[3]) + '"' : '') + '>' + esc(c[1]) + mark(c[0]) + '</th>').join('');
+  const head = cols.map(c => '<th class="' + (c[2] === 'l' ? '' : 'r ') + 'ana-sort" data-sort="' + c[0] + '" tabindex="0" role="button"' + (c[3] ? ' title="' + esc(c[3]) + '"' : '') + '>' + esc(c[1]) + mark(c[0]) + '</th>' + (c[0] === 'total' ? '<th class="ana-mixc" title="这个代理自己的时长按类别构成，颜色见上方对照表">构成</th>' : '')).join('');
   const cell = ms => '<td class="r num">' + (ms ? fmtDur(ms) : '<span class="dim">0</span>') + '</td>';
   return '<section class="card"><h3>按代理的耗时（' + rows.length + ' 个）</h3><div class="tblwrap"><table class="tbl tf-tbl ana-agents"><thead><tr>' + head + '</tr></thead><tbody>' + rows.map(r =>
     '<tr><td><a href="' + focusHash(r.id) + '"' + mdAttr({type: 'agent', agent: r.id}) + ' title="在弹窗里查看这个代理的概要">' + esc(clip(anaName(r.id), 46)) + '</a>' + (r.id !== d.scope.rootId && d.scope.rows.length > 1 ? ' <a class="dim" href="#analysis/agent/' + encodeURIComponent(r.id) + '" title="只分析它和它的后代">仅看它</a>' : '') + '</td>' +
-    cell(r.total) + cell(r.work) + cell(r.wait) + cell(r.read) + cell(r.test) + cell(r.write) + cell(r.git) + cell(r.poll) + cell(r.agent) + cell(r.other) +
+    cell(r.total) + anaMixCell(r.by) + cell(r.work) + cell(r.wait) + cell(r.read) + cell(r.test) + cell(r.write) + cell(r.git) + cell(r.poll) + cell(r.agent) + cell(r.other) +
     (noUsage() ? '' : '<td class="r num">' + (r.nUnp && !r.cost ? '无价格' : moneyH(r.cost)) + '</td><td class="r num">' + fmtTok(r.tok) + '</td>') + '</tr>').join('') +
     '</tbody></table></div><p class="note tf-note">工作 = 工具执行加思考；等待 = 等子代理 + 轮询 + 等你回复。各类别互不重叠。点列标题排序，点代理名在弹窗里看概要，点任意证据或路径分段在弹窗里看对应的步骤。</p></section>';
 }
@@ -164,9 +164,10 @@ function renderAnalysis(root, agentId) {
     host.innerHTML = anaHeader(id) + emptyState('没有可分析的时间范围', '会话里没有记录到这个代理的开始和结束时间。');
   } else {
     host.innerHTML = anaHeader(id) + '<section class="card ana-sum"><p class="ana-head">' + anaRich(anaHeadline(d.split, d.det)) + '</p>' + anaStats(S, d) + '</section>' +
-      anaPathHTML(d) + anaFindingsHTML(d) + anaTopSteps(d) + anaRepeatTable(d) + anaAgentTable(d);
+      anaWhereHTML(d) + anaPathHTML(d) + anaFindingsHTML(d) + anaTopSteps(d) + anaRepeatTable(d) + anaAgentTable(d);
   }
   root.innerHTML = '';
   root.appendChild(host);
   anaBind(host, d);
+  anaHlBind(host);
 }
