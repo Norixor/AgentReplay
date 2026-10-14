@@ -57,7 +57,7 @@ def connect(db):
     return con
 
 
-def _fingerprint(db):
+def fingerprint(db):
     out = []
     for suffix in ("", "-wal"):
         try:
@@ -122,7 +122,7 @@ class Snapshot:
 
 def snapshot(db):
     """Cached Snapshot of a database, None when it cannot be read."""
-    fp = _fingerprint(db)
+    fp = fingerprint(db)
     if fp[0] is None:
         return None
     with _LOCK:

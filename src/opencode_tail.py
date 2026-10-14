@@ -18,7 +18,7 @@ import sqlite3
 
 import opencode_scan
 
-fingerprint = opencode_scan._fingerprint  # (size, mtime_ns) of the database and its -wal file
+fingerprint = opencode_scan.fingerprint  # (size, mtime_ns) of the database and its -wal file
 SLACK_MS = 2000
 MAX_STR = 4000
 CHUNK = 400  # ids per IN (...) query
