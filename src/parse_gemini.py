@@ -28,18 +28,11 @@ from collections import Counter
 
 import prices
 import source_gemini
-from common import Progress, cut, finish_agent, link_agents, totals, ts_ms
+from common import Progress, cut, finish_agent, link_agents, totals
 from gemini_calls import agent_result, make_call, unwrap_response
-from gemini_scan import is_context, project_of, read_session, user_text
+from gemini_scan import is_context, project_of, read_session, to_ms, user_text
 
 TURN_KINDS = {"human", "followup", "brief", "meta"}
-
-
-def _ms(s):
-    try:
-        return ts_ms(s) if s else None
-    except (ValueError, TypeError, AttributeError):
-        return None
 
 
 def _text(content):
@@ -55,7 +48,7 @@ def _thoughts(m, ts, floor):
         subject, desc = str(t.get("subject") or "").strip(), str(t.get("description") or "").strip()
         if subject or desc:
             parts.append(("**%s**\n" % subject if subject else "") + desc)
-        t0 = _ms(t.get("timestamp"))
+        t0 = to_ms(t.get("timestamp"))
         if t0 is not None:
             first = t0 if first is None else min(first, t0)
     think = max(0, ts - max(first, floor)) if (first is not None and floor is not None) else 0
@@ -86,7 +79,7 @@ def build_agent(aid, sess, ctx, root, meta):
             st["pending"].append({"k": ev["k"], "text": cut(ev.get("text", ""), 240), "ts": ev["ts"], "tu": None, "from": None})
 
     for m in sess["msgs"]:
-        ts = _ms(m.get("timestamp")) or st["last"] or 0
+        ts = to_ms(m.get("timestamp")) or st["last"] or 0
         kind = m.get("type")
         if kind == "user":
             text = _text(m.get("content"))
@@ -121,7 +114,7 @@ def _add_step(m, ts, st, ctx, steps, stamps, add_event):
     for tc in m.get("toolCalls") or []:
         if isinstance(tc, dict):
             child = tc.get("agentId")
-            calls.append(make_call(tc, ts, _ms(tc.get("timestamp")), ctx, child if child in ctx["ids"] else None))
+            calls.append(make_call(tc, ts, to_ms(tc.get("timestamp")), ctx, child if child in ctx["ids"] else None))
     text = _text(m.get("content"))
     rsum, think = _thoughts(m, ts, st["last"])
     if st["cur"] is None:
@@ -160,7 +153,7 @@ def _own_report(sess):
             if isinstance(tc, dict) and tc.get("name") == "complete_task" and isinstance(tc.get("args"), dict):
                 r = tc["args"].get("result")
                 if isinstance(r, str) and r.strip():
-                    return unwrap_response(r), _ms(tc.get("timestamp")) or 0
+                    return unwrap_response(r), to_ms(tc.get("timestamp")) or 0
     return unwrap_response(str(sess["meta"].get("summary") or "")), 0
 
 
@@ -176,7 +169,7 @@ def parse_gemini(root_id, tree, name="", out_chars=600, inp_chars=6000, progress
     cwd, _ = project_of(source_gemini.SOURCE.root, tree[root_id], sessions[root_id]["meta"].get("projectHash") or "")
     dispatch = _dispatch_map(sessions, ids)
     ctx = {"out": out_chars, "inp": inp_chars, "family": lambda m: m or "gemini", "codex": True, "ids": ids, "dispatch": dispatch}
-    order = [root_id] + sorted(ids, key=lambda s: _ms(sessions[s]["meta"].get("startTime")) or 0)
+    order = [root_id] + sorted(ids, key=lambda s: to_ms(sessions[s]["meta"].get("startTime")) or 0)
     agents = []
     for sid in order:
         aid = "main" if sid == root_id else sid

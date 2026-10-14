@@ -173,7 +173,7 @@ def scan(path, root):
         rec["title0"], rec["replies"] = _title_of(d["msgs"]), bool(gem)
         rec["model"] = next((m.get("model") for m in gem if m.get("model")), "") or ""
         if meta.get("lastUpdated"):
-            rec["end"] = _ms(meta["lastUpdated"])
+            rec["end"] = to_ms(meta["lastUpdated"])
     else:
         meta = _scan_head(path, rec)
         rec["end"] = tail_ts(path, _TS_TAIL)
@@ -181,16 +181,17 @@ def scan(path, root):
             rec["replies"] = _tail_has_reply(path)
     phash = meta.get("projectHash") or ""
     rec["id"] = meta.get("sessionId") or re.sub(r"\.jsonl?$", "", os.path.basename(path))
-    rec["start"] = _ms(meta.get("startTime"))
+    rec["start"] = to_ms(meta.get("startTime"))
     rec["kind"] = meta.get("kind") or rec["kind"]
     rec["cwd"], rec["proj"] = project_of(root, path, phash)
     return rec
 
 
-def _ms(s):
+def to_ms(s):
+    """Epoch ms of an ISO timestamp string; None when it is missing or not a timestamp."""
     try:
         return ts_ms(s) if s else None
-    except ValueError:
+    except (ValueError, TypeError, AttributeError):
         return None
 
 

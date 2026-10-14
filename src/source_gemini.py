@@ -47,7 +47,6 @@ class GeminiSource(Source):
     dir_flag = "--gemini-dir"
     dir_envs = ("AGENT_REPLAY_GEMINI_DIR",)
     dir_help = "Gemini CLI 数据目录（含 tmp/），默认 $GEMINI_CLI_HOME/.gemini 或 ~/.gemini"
-    live_supported = False
     page = {"fams": False, "notes": {
         "why": "Gemini 只记录思考摘要（主题与说明），原始思考不在记录里",
         "mainSteps": "一条 gemini 消息算一步（同一 id 写了两遍的按 id 合并）",
@@ -112,6 +111,10 @@ class GeminiSource(Source):
     def parse(self, root_id, tree, name, out_chars, inp_chars, progress=None, cache=None):
         from parse_gemini import parse_gemini
         return parse_gemini(root_id, tree, name, out_chars, inp_chars, progress)
+
+    def live(self, lv):
+        import live_gemini
+        return live_gemini.GeminiLive(lv)
 
     def price_step(self, model, usage):
         return price_step(model, usage)

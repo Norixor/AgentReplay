@@ -2,7 +2,8 @@
 """Tests of the Gemini CLI source (src/source_gemini.py, parse_gemini.py, gemini_scan.py) on small synthetic sessions that
 are generated in a temporary directory (no real session content).
 
-Covers merging of records written twice, the shapes of user content, $set / $rewindTo patches, the main session with its
+Covers the live feed (src/live_gemini.py: growth, records written twice, sub-agent discovery, rewinds, windowing, parity with
+the replay parse), merging of records written twice, the shapes of user content, $set / $rewindTo patches, the main session with its
 sub-agent session, the session_context record, which sessions the list shows, the legacy .json format, failed tool calls,
 token pricing (cache, thoughts, long prompts, dated rates) and unpriced models.
 Run directly, or import run() from scripts/check.py; run() returns (cases, failures).
@@ -233,8 +234,207 @@ def cases():
     return out
 
 
+# ---------------------------------------------------------------- live feed
+
+LMAIN, LSUB = "11110000-0000-4000-8000-00000000000a", "22220000-0000-4000-8000-00000000000b"
+
+
+def append(path, *records, raw=None):
+    """Append records (or a raw string) the way the CLI does: one compact JSON document per line."""
+    with open(path, "a", encoding="utf-8") as f:
+        if raw is not None:
+            f.write(raw)
+        for r in records:
+            f.write(json.dumps(r, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+
+def live_totals(lv):
+    tok, amount = {"in": 0, "cr": 0, "out": 0, "rsn": 0}, 0.0
+    for a in lv.agents.values():
+        for k in tok:
+            tok[k] += a.tok.get(k, 0)
+        amount += sum(b[0] for b in a.buckets.values())
+    return tok, amount
+
+
+def live_cases(case):
+    import live
+    import source_gemini as sg
+    from common import ts_ms
+    tmp = tempfile.mkdtemp(prefix="agent-replay-gemini-live-")
+    saved = dict(config.DIRS), config.HOME_DIR
+    try:
+        root = os.path.join(tmp, "gemini")
+        chats = os.path.join(root, "tmp", "demo", "chats")
+        main_p = os.path.join(chats, "session-2026-10-14T02-00-11110000.jsonl")
+        sub_p = os.path.join(chats, LMAIN, LSUB + ".jsonl")
+        g1_think = [("Planning", "delegate")]
+        g1_tok = {"input": 1000, "output": 40, "cached": 400, "thoughts": 60}
+        write_jsonl(main_p, meta_rec(LMAIN), [
+            user("c0", 0, [{"text": "<session_context>\nThis is the Gemini CLI.\n</session_context>"}]),
+            user("u1", 10, "please check the folder"),
+            # first copy of a message: written before its tool calls ran, so no calls yet
+            gem("g1", 14, "Delegating.", g1_tok, thoughts=g1_think),
+        ])
+        with open(os.path.join(root, "tmp", "demo", ".project_root"), "w", encoding="utf-8") as f:
+            f.write("/work/demo")
+        a2a_p = os.path.join(chats, "session-2026-10-14T02-05-a2a-serv.jsonl")
+        write_jsonl(a2a_p, meta_rec(A2A), [{"$set": {"messages": [user("a1", 1, [{"text": "ping"}])]}}])
+        empty = {s.id: os.path.join(tmp, "none-" + s.id) for s in sources.all() if s.id != "gemini"}
+        config.configure(dict(empty, gemini=root), home=os.path.join(tmp, "home"))
+        src = sources.get("gemini")
+        case("live view is supported for Gemini CLI", src.live_supported is True and src.page_meta()["live"] is True)
+        recs, _ = index.build_index()
+        rows = {r["id"]: r for r in index.list_sessions(recs) if r["tool"] == "gemini"}
+        base = ts_ms(ts(0))
+        before = (os.stat(a2a_p).st_size, os.stat(a2a_p).st_mtime_ns)
+
+        lv = live.Live(rows[LMAIN], recs)
+        now = base + 20_000
+        lv.refresh(now)
+        main = lv.agents["main"]
+        snap = lv.snapshot(now)
+        case("first build: one step, tokens from the first copy",
+             main.steps == 1 and main.tok["in"] == 600 and main.tok["cr"] == 400 and main.tok["out"] == 100 and snap["cards"][0]["steps"] == 1)
+        case("main agent with a reply and a recent record is thinking; context is the last reply's input", snap["cards"][0]["state"] == "think" and main.ctx == 1000)
+        case("the real user message is an event, the session_context is not",
+             [e["text"] for e in snap["events"] if e["k"] == "user"] == ["please check the folder"])
+
+        # the same message again, now with its tool calls: counted once, step updated in place
+        append(main_p, gem("g1", 14, "Delegating.", g1_tok, thoughts=g1_think, calls=[
+            tool("run_shell_command", {"command": "false", "description": "fail on purpose"}, 18, 0, output="Exit Code: 1\n")]))
+        lv.refresh(now)
+        snap = lv.snapshot(now)
+        card = snap["cards"][0]
+        case("a message written twice is one step and its tokens are counted once", main.steps == 1 and main.tok["out"] == 100 and main.tok["in"] == 600)
+        case("the failed call is recorded on the step, with a fail event and a streak",
+             card["recent"][0]["st"] == "err" and card["recent"][0]["tool"] == "run_shell_command" and main.fail_streak == 1
+             and any(e["k"] == "fail" for e in snap["events"]))
+
+        # a sub-agent session file appears while its invoke_agent call is still running
+        write_jsonl(sub_p, dict(meta_rec(LSUB, "subagent"), startTime=ts(20), directories=["/work/demo"]), [
+            user("s0", 20, "List the files.\n选档理由：simple lookup"),
+            gem("s1", 24, "", {"input": 3000, "output": 30, "cached": 1000, "thoughts": 10},
+                calls=[tool("run_shell_command", {"command": "ls", "description": "list"}, 25)])])
+        now = base + 26_000
+        lv.refresh(now)
+        snap = lv.snapshot(now)
+        sub = lv.agents.get(LSUB)
+        case("the sub-agent session file is discovered and hangs under the main agent",
+             sub is not None and sub.steps == 1 and lv.parent_of(sub) == "main" and sub.depth == 1 and not sub.done
+             and [c["id"] for c in snap["cards"]] == ["main", LSUB])
+        case("the dispatch is an event with the briefing, and the card carries its brief and reason",
+             any(e["k"] == "dispatch" and "List the files." in e["text"] for e in snap["events"])
+             and snap["cards"][1]["brief"]["why"] == "选档理由：simple lookup")
+        case("while the child runs, the main agent is waiting for it (no executing call is invented)", snap["cards"][0]["state"] == "waiting")
+        case("the list state column reports the waiting main agent and one running child", lv.row_info(now) == {"state": "waiting", "running": 1})
+
+        # the invoke_agent call is written when the child returns
+        append(sub_p, gem("s2", 28, "three files", {"input": 3100, "output": 5},
+                          calls=[tool("complete_task", {"result": "three files"}, 28, 100, output="submitted")]),
+               {"$set": {"summary": json.dumps({"response": "three files"})}})
+        append(main_p, gem("g1", 14, "Delegating.", g1_tok, thoughts=g1_think, calls=[
+            tool("invoke_agent", {"agent_name": "generalist", "prompt": "List the files.\n选档理由：simple lookup"}, 30, 500, agentId=LSUB,
+                 resultDisplay={"result": json.dumps({"response": "three files"}), "state": "completed"}, output="Result:\n{}")]),
+               user("fr", 31, [{"functionResponse": {"id": "r", "name": "invoke_agent", "response": {"output": "x"}}}]),
+               gem("g2", 36, "Done: three files.", {"input": 1500, "output": 20}))
+        now = base + 40_000
+        lv.refresh(now)
+        snap = lv.snapshot(now)
+        case("the returned sub-agent is done with a hand-back event and nothing is pending",
+             sub.done and sub.done_ts > 0 and any(e["k"] == "handback" and e["agent"] == LSUB for e in snap["events"])
+             and not main.pending and sub.desc == "generalist · " + LSUB[:8] and [c["id"] for c in snap["returned"]] == [LSUB])
+        case("dispatch was reported once although it was seen twice", sum(1 for e in snap["events"] if e["k"] == "dispatch") == 1)
+        case("steps are one per message id", main.steps == 2 and sub.steps == 2)
+
+        tree = {LMAIN: main_p, LSUB: sub_p}
+        d = src.parse(LMAIN, tree, "", 600, 4000)
+        tok, amount = live_totals(lv)
+        case("tokens and amount equal the replay page's totals", tok == {k: d["totals"]["tok"][k] for k in tok} and abs(amount - d["totals"]["cost"]) < EPS)
+        case("a reply that ends the turn leaves the agent thinking until the idle limit (the file does not say it ended)",
+             lv.agent_state(main, now, live.config(), 0)[0] == "think" and lv.agent_state(main, now + 301_000, live.config(), 0)[0] == "idle")
+
+        # a call whose recorded status is not final is shown as running, and ends with the next copy
+        append(main_p, gem("g3", 44, "", {"input": 1700, "output": 5},
+                           calls=[tool("run_shell_command", {"command": "sleep 90"}, 44, 0, status="executing", output="", id="call-g3")]))
+        now = base + 50_000
+        lv.refresh(now)
+        state = lv.agent_state(main, now, live.config(), 0)
+        case("a call with a non-final status is executing", state[0] == "exec" and state[1]["tool"] == "run_shell_command" and len(main.pending) == 1)
+        append(main_p, gem("g3", 44, "", {"input": 1700, "output": 5}, calls=[tool("run_shell_command", {"command": "sleep 90"}, 80, 0, output="done", id="call-g3")]))
+        lv.refresh(now + 40_000)
+        case("the final copy ends it without a second step or a second token count", not main.pending and main.steps == 3 and main.ctx == 1700)
+
+        # an unfinished last line is kept for the next read
+        half = json.dumps(gem("g4", 90, "late", {"input": 1800, "output": 7}), separators=(",", ":"))
+        append(main_p, raw=half[:60])
+        lv.refresh(now + 50_000)
+        case("a half-written last line is not read yet", main.steps == 3)
+        append(main_p, raw=half[60:] + "\n")
+        lv.refresh(now + 60_000)
+        case("and is read once complete", main.steps == 4 and main.ctx == 1800)
+
+        # rewinds undo the accounted messages from that id on
+        append(main_p, {"$rewindTo": "g3"})
+        lv.refresh(now + 70_000)
+        d = src.parse(LMAIN, tree, "", 600, 4000)
+        tok, amount = live_totals(lv)
+        case("$rewindTo takes the later steps back out of the counts, as the replay page does",
+             main.steps == 2 and main.ctx == 1500 and tok == {k: d["totals"]["tok"][k] for k in tok} and abs(amount - d["totals"]["cost"]) < EPS)
+
+        # a user-only (a2a) session: no reply, not an error
+        lv2 = live.Live(rows[A2A], recs)
+        lv2.refresh(base + 5_000)
+        s2 = lv2.snapshot(base + 5_000)
+        case("a session with only user messages gives a card with no steps instead of an error",
+             s2["ok"] and s2["cards"][0]["steps"] == 0 and s2["cards"][0]["state"] in ("think", "idle") and lv2.row_info(base + 5_000)["running"] == 0)
+        case("the live feed never wrote to the session files", (os.stat(a2a_p).st_size, os.stat(a2a_p).st_mtime_ns) == before)
+
+        # the window: a large file is only counted before the window
+        big = os.path.join(chats, "session-2026-10-14T01-00-33330000.jsonl")
+        bid = "33330000-0000-4000-8000-00000000000c"
+        write_jsonl(big, meta_rec(bid), [user("b0", 1, "start")] + [gem("m%d" % i, 2 + i % 50, "x" * 700, {"input": 100, "output": 1}) for i in range(2600)])
+        recs, _ = index.build_index()
+        rows = {r["id"]: r for r in index.list_sessions(recs) if r["tool"] == "gemini"}
+        lv3 = live.Live(rows[bid], recs)
+        lv3.refresh(base + 4 * 3600 * 1000)
+        m3 = lv3.agents["main"]
+        case("steps before the window are only counted: window steps plus prefix steps are all messages",
+             0 < m3.steps < 2600 and m3.prefix_steps > 0 and m3.steps + m3.prefix_steps == 2600 and m3.tok["in"] == 100 * m3.steps)
+
+        # legacy single-document sessions do not break the feed
+        old = os.path.join(root, "tmp", "legacy", "chats", "session-2026-02-27T10-43-dddd4444.json")
+        os.makedirs(os.path.dirname(old), exist_ok=True)
+        with open(old, "w", encoding="utf-8") as f:
+            json.dump({"sessionId": OLD, "projectHash": PHASH, "startTime": ts(0), "lastUpdated": ts(9), "messages": [
+                user("o1", 1, "q"), gem("o2", 5, "a", {"input": 500, "output": 5, "cached": 100})]}, f)
+        recs, _ = index.build_index()
+        rows = {r["id"]: r for r in index.list_sessions(recs) if r["tool"] == "gemini"}
+        lv4 = live.Live(rows[OLD], recs)
+        lv4.refresh(base + 10_000)
+        case("a legacy .json session is read whole", lv4.agents["main"].steps == 1 and lv4.agents["main"].tok["cr"] == 100)
+
+        # models without a price: tokens count, the amount does not, and the model is reported
+        up = os.path.join(chats, "session-2026-10-14T01-30-44440000.jsonl")
+        uid = "44440000-0000-4000-8000-00000000000d"
+        write_jsonl(up, meta_rec(uid), [user("x1", 1, "hi"), gem("x2", 3, "hello", {"input": 100, "output": 5}, model="gemini-9-unknown")])
+        recs, _ = index.build_index()
+        rows = {r["id"]: r for r in index.list_sessions(recs) if r["tool"] == "gemini"}
+        lv5 = live.Live(rows[uid], recs)
+        lv5.refresh(base + 10_000)
+        snap5 = lv5.snapshot(base + 10_000)
+        case("an unpriced model is reported while its tokens count", snap5["unpriced"] == ["gemini-9-unknown"] and lv5.agents["main"].tok["in"] == 100
+             and sum(b[0] for b in lv5.agents["main"].buckets.values()) == 0)
+    finally:
+        config.configure(saved[0], home=saved[1])
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def run():
     res = cases()
+    extra = []
+    live_cases(lambda name, ok: extra.append((name, bool(ok))))
+    res = res + extra
     return res, [n for n, ok in res if not ok]
 
 
