@@ -17,8 +17,27 @@
 </p>
 <p align="center"><a href="README.md">简体中文</a> · English</p>
 
+## Support at a glance
+
+AgentReplay currently supports **five coding agents**. The table shows what works for each; details and limits are in [Supported sources](#supported-sources).
+
+| Source | Replay (list, overview, timeline, route map, time analysis, step-by-step) | Sub-agents | Tokens and estimated cost | Live monitoring | Worth knowing |
+| --- | --- | --- | --- | --- | --- |
+| **Claude Code** | ✅ | ✅ briefs, model, effort, hand-back reports | ✅ cache writes split by 5-minute / 1-hour TTL | ✅ full | Thinking text is not stored, only how long it thought |
+| **Codex** | ✅ | ✅ child threads; briefs are encrypted in the rollout | ✅ incl. cache and reasoning tokens | ✅ full | Models missing from the price table get no cost; tokens are still counted |
+| **Gemini CLI** | ✅ | ✅ dispatch prompts and results are readable | ✅ incl. thinking and cache | ✅ cannot show a tool that is still running | Tool calls are written only after they finish; timings are estimated from timestamps |
+| **opencode** | ✅ | ✅ child sessions started by the `task` tool | ✅ price table matched by model name | ✅ includes running tools | `org/model` names used through a gateway get no cost |
+| **Cursor** | ✅ | ✅ child chats started by `task_v2` | ❌ Cursor stores no token usage locally, so no cost or tokens are shown | ✅ time and context size only | Chats from before about 2025-12 have no per-message times and are not listed |
+
+- **Replay pages** are the same for all five sources: session list, overview, timeline, route map, time analysis, step-by-step replay with reasons, and sub-agent detail.
+- **Live monitoring** is the same set of three views: route map, agent graph and cards, plus recent events, burn rate and alerts. Running sessions refresh every 5 seconds, and you can open a step that is still executing. Cursor's live page has no cost or tokens.
+- **Estimated cost** is computed from official API list prices and is not a bill. Subscription plans are not billed per token, so use it for comparison only. The price table covers Claude, OpenAI, Gemini and over 90 models from other vendors.
+- **Platforms**: macOS and Linux; Windows is untested. Python 3.9+ with the standard library only, no dependencies to install.
+- **Not supported**: other sources such as WorkBuddy. Adding one means writing an adapter module that follows the contract in `src/sources.py`.
+
 ## Contents
 
+- [Support at a glance](#support-at-a-glance)
 - [About](#about)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)

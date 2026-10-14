@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const code = fs.readFileSync(path.join(root, 'src', 'step_brief.js'), 'utf8').replace(/^'use strict';/, '');
-const L = vm.runInNewContext(code + '\n;({stepBrief})', {D: {meta: {project: '/Users/me/Project/Animy'}}});
+const L = vm.runInNewContext(code + '\n;({stepBrief})', {D: {meta: {project: '/Users/me/Project/Acme'}}});
 
-const P = '/Users/me/Project/Animy', WT = P + '/.claude/worktrees';
+const P = '/Users/me/Project/Acme', WT = P + '/.claude/worktrees';
 let n = 0;
 const bash = (cmd, extra = {}) => ({name: 'Bash', cat: 'other', st: 'ok', bg: false, sum: cmd.split('\n')[0], inp: cmd, res: '', rlen: 0, ...extra});
 const brief = (c, s) => L.stepBrief(c, s || {says: ''});
@@ -38,7 +38,7 @@ check('python heredoc that only reads, inside a worktree', bash("cd " + WT + "/w
 check('python edit then git commit: the edit leads, the commit is listed first in more', bash("python3 - <<'EOF'\np='LEDGER.md'\ns=open(p).read()\nopen(p,'w').write(s+'x')\nEOF\ngit add LEDGER.md && git commit -qm \"docs(ledger): note\" && git log --oneline -1", {cat: 'git'}),
   {kind: 'write', action: '改 LEDGER.md（python 脚本）', more: /^另有 3 条命令：git commit「docs\(ledger\): note」 · git add LEDGER\.md …$/});
 check('npm script test', bash('npm run test:e2e -- --workers=2', {cat: 'test'}), {kind: 'test', kindLabel: '跑测试', action: /^跑测试 npm run test:e2e/});
-check('rg', bash('rg -n "memberIssues" src/Animy', {cat: 'read'}), {kind: 'search', action: '搜索「memberIssues」于 src/Animy'});
+check('rg', bash('rg -n "userIssues" src/Acme', {cat: 'read'}), {kind: 'search', action: '搜索「userIssues」于 src/Acme'});
 check('curl drops the query string', bash("curl -s 'http://127.0.0.1:9311/api/live?token=abc' | head -c 300"), {kind: 'net', action: '请求 127.0.0.1:9311/api/live'});
 check('curl POST', bash('curl -sS -X POST -d @body.json https://api.example.com/v1/run'), {kind: 'net', action: '请求 POST api.example.com/v1/run'});
 check('pipes and a subshell: worktree add leads', bash('git worktree add .claude/worktrees/ch1 -b ch1 main 2>&1 | tail -1 && (cd .claude/worktrees/ch1 && php tools/worktree-deps.php 2>&1 | tail -1)', {cat: 'git'}),
@@ -48,13 +48,13 @@ check('command substitution counts as a command', bash('for f in a.php b.php; do
 check('with-timeout sh -c wrapper is unwrapped', bash("~/AGENTS_MD/bin/with-timeout 600 sh -c 'cd " + WT + "/w2 && composer check -- --all > /tmp/x.log 2>&1'", {cat: 'test'}),
   {kind: 'check', action: '检查 composer check -- --all', where: 'w2'});
 check('shell variables are substituted into paths', bash('S=/private/tmp/claude-501/p/s/scratchpad && php $S/audit.php > $S/out.txt'), {kind: 'run', action: '运行 scratchpad/audit.php'});
-check('git add + commit + log: the commit leads', bash('git add -A && git commit -q -m "fix: CellGate capital check" && git log --oneline -1', {cat: 'git'}),
-  {kind: 'git', action: 'git commit「fix: CellGate capital check」', more: /^另有 2 条命令：git add -A · git log --oneline -1$/});
+check('git add + commit + log: the commit leads', bash('git add -A && git commit -q -m "fix: PriceGate capital check" && git log --oneline -1', {cat: 'git'}),
+  {kind: 'git', action: 'git commit「fix: PriceGate capital check」', more: /^另有 2 条命令：git add -A · git log --oneline -1$/});
 check('sleep then tail: waiting', bash('sleep 30; tail -5 /tmp/run.log', {cat: 'wait'}), {kind: 'wait', action: '等待 30 秒', more: /读 \/tmp\/run\.log 末 5 行/});
 check('node --check', bash('node --check src/steps.js'), {kind: 'check', action: '语法检查 src/steps.js'});
 check('a check script by name', bash('python3 -I scripts/check.py > $LOG 2>&1'), {kind: 'check', action: '检查 scripts/check.py'});
-check('sed -n range', bash('sed -n 60,150p ' + P + '/src/Animy/Application/Content/CellGate.php', {cat: 'read'}),
-  {kind: 'read', action: '读 src/Animy/Application/Content/CellGate.php 第 60–150 行'});
+check('sed -n range', bash('sed -n 60,150p ' + P + '/src/Acme/Application/Content/PriceGate.php', {cat: 'read'}),
+  {kind: 'read', action: '读 src/Acme/Application/Content/PriceGate.php 第 60–150 行'});
 check('ssh runs the remote command', bash("ssh -o BatchMode=yes root@10.0.0.7 'cd /srv/app && git status --short'"), {kind: 'git', action: 'git status --short', where: 'ssh 10.0.0.7'});
 check('background vite: a server', bash('cd frontend && (nohup npx vite --port 5183 > /tmp/v.log 2>&1 &) && sleep 4'), {kind: 'serve', action: /^起服务 npx vite --port 5183/});
 check('unknown program falls back to the data category', bash('frobnicate --fast input.bin', {cat: 'test'}), {kind: 'test', action: 'frobnicate --fast input.bin'});
@@ -77,7 +77,7 @@ check('Read with offset', {name: 'Read', cat: 'read', st: 'ok', sum: WT + '/wc3/
   {kind: 'read', action: '读 src/x.ts 从第 40 行', where: 'wc3', 'result.line': '读到 5300 字符'});
 check('Edit', {name: 'Edit', cat: 'write', st: 'ok', sum: P + '/src/a.php', res: 'The file ' + P + '/src/a.php has been updated successfully.'},
   {kind: 'write', action: '改 src/a.php', 'result.line': '已保存'});
-check('Grep', {name: 'Grep', cat: 'read', st: 'ok', sum: 'memberIssues  ' + P + '/src', res: 'src/a.php'}, {kind: 'search', action: '搜索「memberIssues」于 src'});
+check('Grep', {name: 'Grep', cat: 'read', st: 'ok', sum: 'userIssues  ' + P + '/src', res: 'src/a.php'}, {kind: 'search', action: '搜索「userIssues」于 src'});
 check('Agent in the background', {name: 'Agent', cat: 'agent', st: 'ok', sum: 'CH1 写手接口通用化', res: 'Async agent launched successfully. agentId: x'},
   {kind: 'agent', action: '派子代理：CH1 写手接口通用化', 'result.line': '已派出，后台运行'});
 check('browser tool', {name: 'mcp__Claude_Browser__navigate', cat: 'other', st: 'ok', sum: 'http://127.0.0.1:9311/r/x', res: 'ok'}, {kind: 'browser', action: /^打开页面 127\.0\.0\.1:9311/});
