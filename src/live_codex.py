@@ -4,9 +4,8 @@ import os
 import re
 import threading
 
-import config
-import index
 import prices
+import source_codex
 from codex_calls import _HOOK, SHELL_TOOLS, _bad_exit, _desc, _short, _summary, _tool_cat, nested_calls
 from codex_scan import content_text
 from common import merge_kind, ts_ms
@@ -105,7 +104,7 @@ class CodexFeed:
             u = info.get("last_token_usage") or {}
             inp, cached, cw = u.get("input_tokens", 0) or 0, u.get("cached_input_tokens", 0) or 0, u.get("cache_write_input_tokens", 0) or 0
             out = u.get("output_tokens", 0) or 0
-            pr = prices.codex_step(st.model, {"in": inp, "cached": cached, "cw": cw, "out": out, "rsn": u.get("reasoning_output_tokens", 0) or 0})
+            pr = source_codex.price_step(st.model, {"in": inp, "cached": cached, "cw": cw, "out": out, "rsn": u.get("reasoning_output_tokens", 0) or 0})
             if pr["cost"] is None:
                 lv.unpriced.add(st.model or "(unknown)")
             st.add_cost(ts, pr["cost"] or 0.0, prices.tok_total(pr["tok"]))
@@ -239,7 +238,7 @@ class CodexLive:
         feed = CodexFeed(lv, main, True, meta.get("subagent_history_start_ordinal") or 0)
         t = lv.follow(lv.path, main, feed, now)
         self.prefix(main, lv.path, t.start, feed)
-        tree = index.codex_tree(lv.recs, self.root_id)
+        tree = source_codex.thread_tree(lv.recs.values(), self.root_id)
         for tid, path in tree.items():
             if tid != self.root_id:
                 self.add_child(tid, path, None, now)
@@ -317,7 +316,7 @@ class CodexLive:
         days = {datetime.date.fromtimestamp(now / 1000 - d * 86400) for d in (0, 1)}
         if lv.row.get("start"):
             days.add(datetime.date.fromtimestamp(lv.row["start"] / 1000))
-        dirs = [os.path.join(config.CODEX_SESSIONS, "%04d" % d.year, "%02d" % d.month, "%02d" % d.day) for d in days]
+        dirs = [os.path.join(source_codex.sessions_dir(source_codex.SOURCE.root), "%04d" % d.year, "%02d" % d.month, "%02d" % d.day) for d in days]
         for d in dirs:
             try:
                 names = os.listdir(d)

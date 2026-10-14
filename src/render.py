@@ -4,9 +4,7 @@ import os
 import re
 import time
 
-import index
-from parse import parse_session
-from parse_codex import parse_codex
+import sources
 from redact import walk
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -61,22 +59,17 @@ def shrink(data, oc, ic):
 
 
 def load_data(tool, path, name, oc, ic, progress=None, root_id=None, tree=None):
-    if tool == "codex":
-        if tree is None:
-            recs, _ = index.build_index()
-            r = index.find(recs, "codex:" + (root_id or ""))
-            if r is None:
-                r = next((x for x in recs.values() if x["path"] == path), None)
-            root_id = r["id"] if r else root_id
-            tree = index.codex_tree(recs, root_id) if r else {root_id: path}
-        return parse_codex(root_id, tree, name, oc, ic, progress)
-    return parse_session(path, name, oc, ic, progress)
+    """Page data of one session via its source; without a tree the source resolves the session from the path."""
+    src = sources.get(tool)
+    if tree is None:
+        root_id, tree = src.tree_for_path(path, root_id)
+    return src.parse(root_id, tree, name, oc, ic, progress)
 
 
 def build_html(path, name, out_chars=600, inp_chars=4000, limit=SIZE_LIMIT, progress=None, back=False,
                tool=None, root_id=None, tree=None, active=False):
     """Return (html, info). Parses once at the requested caps, then shrinks caps while the page exceeds `limit`."""
-    tool = tool or index.detect_tool(path)
+    tool = tool or sources.detect(path)
     oc, ic, shrunk = out_chars, inp_chars, False
     data = load_data(tool, path, name, oc, ic, progress, root_id, tree)
     if progress:

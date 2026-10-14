@@ -11,6 +11,7 @@ import os
 import re
 
 import prices
+import source_claude
 from common import LONG_MS, Progress, classify_bash, cut, finish_agent, link_agents, merge_kind, totals, ts_ms
 
 ROW_TYPES = ("user", "assistant", "system", "attachment", "queue-operation")
@@ -331,7 +332,7 @@ def build_agent(aid, rows, ctx, meta=None):
                 last_act = max(last_act or 0, ev["ts"])
             continue
         mm = msgs[x]
-        pr = prices.claude_step(mm["model"], mm["usage"])
+        pr = source_claude.price_step(mm["model"], mm["usage"])
         tk = pr["tok"]
         fam = family(mm["model"])
         texts_before, texts_all, calls_raw, seen_tool = [], [], [], False

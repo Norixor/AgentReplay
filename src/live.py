@@ -12,7 +12,7 @@ import threading
 import time
 from collections import defaultdict, deque
 
-import index
+import sources
 from common import ts_ms
 from prices import tok_total, zero_tok
 
@@ -21,23 +21,32 @@ WINDOW_MS = 61 * 60 * 1000
 BUCKET_MS = 60_000
 _TS = re.compile(rb'"timestamp":"([^"]+)"')
 _CFG = {"mtime": None, "data": {}}
-DEFAULTS = {"ctxLimit": 400000, "ctxLimitCodex": 400000, "idleSec": 300, "endedSec": 600, "longCmdSec": 600, "subStepLimit": 150,
+DEFAULTS = {"ctxLimit": 400000, "idleSec": 300, "endedSec": 600, "longCmdSec": 600, "subStepLimit": 150,
             "hookRecentSec": 600, "failStreak": 3, "staleSubSec": 3600, "releaseSec": 1800, "pollSec": 5, "slowPollSec": 60,
             "returnedKeepSec": 600, "graphMaxNodes": 40, "graphFadeSec": 60}
 
 
+def _defaults():
+    """DEFAULTS plus each source's context-limit key (Source.ctx_limit_key / ctx_limit_default)."""
+    out = dict(DEFAULTS)
+    for s in sources.all():
+        out.setdefault(s.ctx_limit_key, s.ctx_limit_default)
+    return out
+
+
 def config():
-    """live.json next to prices.json; re-read when its mtime changes."""
+    """live.json next to prices.json; re-read when its mtime (or the set of registered sources) changes."""
     p = os.path.join(HERE, "live.json")
+    defaults = _defaults()
     try:
-        mt = os.stat(p).st_mtime_ns
+        mt = (os.stat(p).st_mtime_ns, tuple(defaults))
         if mt != _CFG["mtime"]:
             with open(p, encoding="utf-8") as f:
-                _CFG["data"] = dict(DEFAULTS, **{k: v for k, v in json.load(f).items() if k in DEFAULTS})
+                _CFG["data"] = dict(defaults, **{k: v for k, v in json.load(f).items() if k in defaults})
             _CFG["mtime"] = mt
     except (OSError, ValueError):
         if _CFG["mtime"] is None:
-            _CFG["data"] = dict(DEFAULTS)
+            _CFG["data"] = defaults
     return _CFG["data"]
 
 
@@ -151,12 +160,8 @@ class Live:
         self.models = set()
         self.unpriced = set()       # models seen without a price: their tokens count, their amount does not
         self.build_ms = 0
-        if self.tool == "claude":
-            import live_claude
-            self.impl = live_claude.ClaudeLive(self)
-        else:
-            import live_codex
-            self.impl = live_codex.CodexLive(self)
+        self.source = sources.get(self.tool)
+        self.impl = self.source.live(self)
 
     # ------------------------------------------------------------ shared helpers used by the feeds
 
@@ -247,7 +252,7 @@ class Live:
             out.append({"k": "poll", "text": "刚做过前台轮询（%d 秒前）" % ((now - a.poll_ts) // 1000)})
         if a.id != "main" and a.steps > cfg["subStepLimit"]:
             out.append({"k": "steps", "text": "子代理已 %d 步，超过 %d 步" % (a.steps, cfg["subStepLimit"])})
-        limit = cfg["ctxLimitCodex"] if self.tool == "codex" else cfg["ctxLimit"]
+        limit = cfg[self.source.ctx_limit_key]
         if a.ctx > limit:
             out.append({"k": "ctx", "text": "上下文 %d token，超过压缩点 %d" % (a.ctx, limit)})
         recent_hooks = [t for t in a.hook_ts if now - t < cfg["hookRecentSec"] * 1000]
@@ -292,7 +297,7 @@ class Live:
         win15 = (now - 15 * 60000) // BUCKET_MS
         c15 = sum(v[0] for k, v in a.buckets.items() if k > win15)
         t15 = sum(v[1] for k, v in a.buckets.items() if k > win15)
-        limit = cfg["ctxLimitCodex"] if self.tool == "codex" else cfg["ctxLimit"]
+        limit = cfg[self.source.ctx_limit_key]
         steps = a.steps + a.prefix_steps
         span = min(300_000, max(60_000, now - (a.start or now)))
         spm = round(sum(1 for t in a.step_ts if now - t <= span) * 60_000 / span, 1)

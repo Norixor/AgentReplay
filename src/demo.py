@@ -31,7 +31,7 @@ def generate(base=None, now_ms=None):
 def run(port=8791, open_browser=True):
     import server
     info = generate()
-    config.configure(info["claude_dir"], info["codex_dir"], home=info["base"])
+    config.configure({"claude": info["claude_dir"], "codex": info["codex_dir"]}, home=info["base"])
     feeder = demo_live.LiveFeeder(info["live"])
     feeder.start()
     print("演示模式：以下都是合成的示例会话（虚构的电商项目），数据在 %s，每次启动都会重新生成。" % info["base"], flush=True)

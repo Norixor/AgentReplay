@@ -4,7 +4,7 @@ import os
 import re
 import threading
 
-import prices
+import source_claude
 from common import classify_bash, merge_kind, ts_ms
 from prices import add_tok, tok_total, zero_tok
 from live import WINDOW_MS, AgentState
@@ -90,7 +90,7 @@ class ClaudeFeed:
             st.effort = r["effort"]
         u = m.get("usage")
         if u and mid in st.msg:
-            pr = prices.claude_step(st.model, u)
+            pr = source_claude.price_step(st.model, u)
             if pr["cost"] is None:
                 lv.unpriced.add(st.model or "(unknown)")
             acc = st.msg[mid]

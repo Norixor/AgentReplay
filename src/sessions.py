@@ -1,7 +1,8 @@
-"""Command-line helpers: resolve a session argument and print the unified Claude/Codex session list."""
+"""Command-line helpers: resolve a session argument and print the unified session list of every source."""
 import os
 
 import index
+import sources
 
 
 def _rows(limit=None, project=None):
@@ -16,7 +17,7 @@ def _rows(limit=None, project=None):
 
 
 def resolve(arg):
-    """-> (tool, jsonl path, root id, display name). Accepts a .jsonl path or an id prefix of either tool."""
+    """-> (tool, jsonl path, root id, display name). Accepts a .jsonl path or an id prefix of any source."""
     recs, rows = _rows()
     names = {r["path"]: r["name"] for r in rows}
     if arg.endswith(".jsonl") or os.path.sep in arg:
@@ -24,13 +25,13 @@ def resolve(arg):
         if not os.path.isfile(p):
             raise SystemExit("找不到文件：%s" % p)
         rec = recs.get(p)
-        tool = rec["tool"] if rec else index.detect_tool(p)
+        tool = rec["tool"] if rec else sources.detect(p)
         rid = rec["id"] if rec else os.path.basename(p)[:-6]
         return tool, p, rid, names.get(p, "")
-    ids = {r["id"] for r in recs.values() if r["tool"] == "codex"}
-    hits = [r for r in recs.values() if r["id"].startswith(arg) and not (r["tool"] == "codex" and r["parent"] in ids)]
+    ids = {(r["tool"], r["id"]) for r in recs.values()}  # sub-agent records (parent is a record of the same source) are not listed
+    hits = [r for r in recs.values() if r["id"].startswith(arg) and (r["tool"], r["parent"]) not in ids]
     if not hits:
-        raise SystemExit("没有以 %s 开头的会话（已查找 Claude 与 Codex，子代理线程不单独列出）" % arg)
+        raise SystemExit("没有以 %s 开头的会话（已查找 %s，子代理线程不单独列出）" % (arg, " 与 ".join(s.label for s in sources.all())))
     if len({r["id"] for r in hits}) > 1:
         raise SystemExit("前缀 %s 匹配多个会话，请写长一些：\n  " % arg + "\n  ".join("%s:%s" % (r["tool"], r["id"]) for r in hits[:10]))
     r = max(hits, key=lambda x: x["mtime"])

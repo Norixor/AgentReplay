@@ -20,6 +20,7 @@ import config
 import index
 import costcache
 import live
+import sources
 from live_steps import StepFeed
 from render import build_html
 
@@ -101,7 +102,7 @@ class App:
         self.lock = threading.Lock()
         self.recs, self.stats, self.rows = {}, {}, []
         self.jobs = {}  # key -> job dict
-        self.feed = StepFeed(self.tree_files, lambda row: index.codex_tree(self.recs, row["id"]) if row["tool"] == "codex" else None)
+        self.feed = StepFeed(self.tree_files, lambda row: index.session_tree(self.recs, row))
         self.refresh()
 
     def refresh(self, force=False):
@@ -133,14 +134,7 @@ class App:
 
     def tree_files(self, row):
         """Every file whose change must invalidate the cached page."""
-        if row["tool"] == "codex":
-            return list(index.codex_tree(self.recs, row["id"]).values())
-        base = row["path"]
-        files = [base]
-        sub = os.path.join(os.path.dirname(base), row["id"], "subagents")
-        if os.path.isdir(sub):
-            files += [os.path.join(sub, fn) for fn in sorted(os.listdir(sub))]
-        return files
+        return index.session_files(self.recs, row)
 
     def signature(self, row):
         h = hashlib.sha1(code_signature().encode())
@@ -182,7 +176,7 @@ class App:
         def progress(done, total, label):
             job["done"], job["total"], job["label"] = done, total, label
         try:
-            tree = index.codex_tree(self.recs, row["id"]) if row["tool"] == "codex" else None
+            tree = index.session_tree(self.recs, row)
             html, info = build_html(row["path"], row["name"], back=True, progress=progress, tool=row["tool"], root_id=row["id"], tree=tree, active=active)
             job["info"] = {"bytes": info["bytes"], "steps": info["steps"], "agents": info["agents"], "shrunk": info["shrunk"]}
             costcache.store(row["key"], row["size"], info["totals"])  # feeds the list's amount column; size = files at job start
@@ -283,13 +277,14 @@ class Handler(BaseHTTPRequestHandler):
                 act = {r["key"]: {"status": r["status"], "end": r["end"], "subs": r["subs"], "size": r["size"], "live": self.app.live_info(r)}
                        for r in self.app.rows if r["status"] == "active"}
                 return self._json({"active": act, "now": int(time.time() * 1000)})
-            m = re.match(r"^/api/live/(claude|codex)/([^/]+)$", path)
+            tools = sources.route_pattern()  # per request: the registry decides which /<tool>/ segments exist
+            m = re.match(r"^/api/live/(%s)/([^/]+)$" % tools, path)
             if m and _KEY.match(m.group(2)):
                 return self.live_route("%s:%s" % (m.group(1), m.group(2)))
-            m = re.match(r"^/api/steps/(claude|codex)/([^/]+)$", path)
+            m = re.match(r"^/api/steps/(%s)/([^/]+)$" % tools, path)
             if m and _KEY.match(m.group(2)):
                 return self.steps_route("%s:%s" % (m.group(1), m.group(2)), q)
-            m = re.match(r"^/(s|r|api/open|api/job)/(claude|codex)/([^/]+)$", path)
+            m = re.match(r"^/(s|r|api/open|api/job)/(%s)/([^/]+)$" % tools, path)
             if m and _KEY.match(m.group(3)):
                 return self.session_route(m.group(1), "%s:%s" % (m.group(2), m.group(3)), m.group(2), m.group(3))
             return self._send(404, "not found", "text/plain; charset=utf-8")
@@ -352,7 +347,7 @@ class Handler(BaseHTTPRequestHandler):
             row = app.row(key)
             return self._send(200, _read("loading.html").replace("{{TITLE}}", _esc(row["name"] or ident[:8])).replace(
                 "{{NAME}}", _esc(row["name"] or ident[:8])).replace("{{KEY}}", "%s/%s" % (tool, ident)).replace(
-                "{{TOOL}}", "Claude Code" if tool == "claude" else "Codex").replace("{{SIZE}}", "%.1f MB" % (row["size"] / 1e6)))
+                "{{TOOL}}", _esc(sources.get(tool).label)).replace("{{SIZE}}", "%.1f MB" % (row["size"] / 1e6)))
         if kind == "api/open":
             job = app.open_job(key)
             return self._json(_status_json(job))

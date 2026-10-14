@@ -11,6 +11,7 @@ import os
 import re
 
 import prices
+import source_codex
 from codex_calls import make_call
 from codex_scan import scan_thread
 from common import Progress, cut, finish_agent, link_agents, merge_kind, totals
@@ -83,7 +84,7 @@ def build_thread(aid, data, ctx, paths):
         elif not said:
             src = ""
         model = st["model"] or "codex"
-        pr = prices.codex_step(model, u)
+        pr = source_codex.price_step(model, u)
         if not usage_ev:  # work cut short by an abort has no usage row: nothing to price, nothing unpriced
             pr["cost"], pr["priced"] = 0.0, True
         step = {"n": len(steps), "ts": first_ts, "end": usage_ev["ts"] if usage_ev else first_ts, "fam": model, "model": model,

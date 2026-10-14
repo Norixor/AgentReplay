@@ -1,10 +1,10 @@
 """Where the session data lives and where output and caches go.
 
-Resolution order for each Claude Code / Codex data root (first match wins):
-  1. command line  --claude-dir / --codex-dir
-  2. AGENT_REPLAY_CLAUDE_DIR / AGENT_REPLAY_CODEX_DIR
-  3. the tools' own conventions: CLAUDE_CONFIG_DIR, CODEX_HOME
-  4. ~/.claude, ~/.codex
+Each registered source (sources.py) has one data root, resolved in this order (first match wins):
+  1. its command line option (Source.dir_flag, e.g. --claude-dir / --codex-dir)
+  2. its environment variables in order (Source.dir_envs, e.g. AGENT_REPLAY_CLAUDE_DIR then CLAUDE_CONFIG_DIR,
+     AGENT_REPLAY_CODEX_DIR then CODEX_HOME)
+  3. its default (Source.dir_default, e.g. ~/.claude, ~/.codex)
 The output and cache directory is <project>/replays unless AGENT_REPLAY_HOME is set.
 Other modules read the attributes of this module at call time, so configure() may be called after import.
 """
@@ -12,9 +12,8 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-HOME_DIR = CLAUDE_DIR = CODEX_DIR = ""
-CLAUDE_PROJECTS = CLAUDE_SESSIONS = CODEX_SESSIONS = CODEX_ARCHIVED = ""
-CACHE_DIR = INDEX_FILE = HTML_CACHE = ""
+HOME_DIR = CACHE_DIR = INDEX_FILE = HTML_CACHE = ""
+DIRS = {}  # source id -> data root
 
 
 def _env(*names):
@@ -29,30 +28,34 @@ def _path(p):
     return os.path.abspath(os.path.expanduser(p))
 
 
-def configure(claude_dir=None, codex_dir=None, home=None):
-    """(Re)compute every location. Explicit arguments beat environment variables, which beat the defaults."""
-    global HOME_DIR, CLAUDE_DIR, CODEX_DIR, CLAUDE_PROJECTS, CLAUDE_SESSIONS, CODEX_SESSIONS, CODEX_ARCHIVED
-    global CACHE_DIR, INDEX_FILE, HTML_CACHE
+def configure(dirs=None, home=None):
+    """(Re)compute every location. dirs: {source id: data root}; explicit values beat environment variables, which
+    beat the defaults."""
+    import sources  # the adapters import this module; ask the registry only at call time
+    global HOME_DIR, DIRS, CACHE_DIR, INDEX_FILE, HTML_CACHE
+    dirs = dirs or {}
     HOME_DIR = _path(home or _env("AGENT_REPLAY_HOME") or os.path.join(ROOT, "replays"))
-    CLAUDE_DIR = _path(claude_dir or _env("AGENT_REPLAY_CLAUDE_DIR", "CLAUDE_CONFIG_DIR") or os.path.join("~", ".claude"))
-    CODEX_DIR = _path(codex_dir or _env("AGENT_REPLAY_CODEX_DIR", "CODEX_HOME") or os.path.join("~", ".codex"))
-    CLAUDE_PROJECTS = os.path.join(CLAUDE_DIR, "projects")
-    CLAUDE_SESSIONS = os.path.join(CLAUDE_DIR, "sessions")
-    CODEX_SESSIONS = os.path.join(CODEX_DIR, "sessions")
-    CODEX_ARCHIVED = os.path.join(CODEX_DIR, "archived_sessions")
+    DIRS = {s.id: _path(dirs.get(s.id) or _env(*s.dir_envs) or s.dir_default) for s in sources.all()}
     CACHE_DIR = os.path.join(HOME_DIR, ".cache")
     INDEX_FILE = os.path.join(CACHE_DIR, "index.json")
     HTML_CACHE = os.path.join(CACHE_DIR, "html")
 
 
+def source_dir(sid):
+    """Data root of a source (KeyError for a source registered after the last configure())."""
+    return DIRS[sid]
+
+
 def add_args(ap):
-    """Add the data-directory options shared by every command."""
-    ap.add_argument("--claude-dir", metavar="DIR", help="Claude Code 数据目录（含 projects/），默认 $CLAUDE_CONFIG_DIR 或 ~/.claude")
-    ap.add_argument("--codex-dir", metavar="DIR", help="Codex 数据目录（含 sessions/），默认 $CODEX_HOME 或 ~/.codex")
+    """Add the data-directory options shared by every command, one per source."""
+    import sources
+    for s in sources.all():
+        ap.add_argument(s.dir_flag, metavar="DIR", dest=s.dir_dest, help=s.dir_help)
 
 
 def apply_args(args):
-    configure(getattr(args, "claude_dir", None), getattr(args, "codex_dir", None))
+    import sources
+    configure({s.id: getattr(args, s.dir_dest, None) for s in sources.all()})
 
 
 configure()

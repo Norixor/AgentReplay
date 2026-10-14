@@ -128,6 +128,17 @@ def check_prices():
         report(True, "pricing unit tests passed (%d cases)" % len(cases))
 
 
+def check_sources():
+    """Source registry extensibility test with a fake source (scripts/test_sources.py)."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import test_sources
+    cases, bad = test_sources.run()
+    for name in bad:
+        report(False, "sources: " + name)
+    if not bad:
+        report(True, "source registry tests passed (%d cases)" % len(cases))
+
+
 def raw_claude_messages(path):
     """[(model, usage)] of the main transcript in order of first appearance, one entry per message id (the row with the most output)."""
     order, best = [], {}
@@ -215,14 +226,14 @@ def check_render(tmp):
     from render import build_html, load_data
     config.configure(home=tmp)
     info = demo.generate(os.path.join(tmp, "demo"))
-    config.configure(info["claude_dir"], info["codex_dir"], home=info["base"])
+    config.configure({"claude": info["claude_dir"], "codex": info["codex_dir"]}, home=info["base"])
     recs, _ = index.build_index()
     rows = index.list_sessions(recs)
     report(len(rows) == 3, "demo index lists 3 sessions (got %d)" % len(rows))
     pages = []
     for tool in ("claude", "codex"):
         row = next(r for r in rows if r["tool"] == tool and r["status"] != "active")
-        tree = index.codex_tree(recs, row["id"]) if tool == "codex" else None
+        tree = index.session_tree(recs, row)
         html, i = build_html(row["path"], row["name"], tool=tool, root_id=row["id"], tree=tree)
         pages.append(write_page(tmp, tool, html))
         got = (i["agents"], i["steps"])
@@ -425,6 +436,7 @@ def main():
     check_python()
     check_js()
     check_prices()
+    check_sources()
     tmp = tempfile.mkdtemp(prefix="agent-replay-check-")
     try:
         check_render(tmp)

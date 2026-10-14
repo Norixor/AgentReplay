@@ -5,9 +5,10 @@ this feed for the steps added since. The feed keeps one parse result per followe
 background thread when a session file has grown, never inside the request, so a request that needs no re-parse answers
 in a few milliseconds.
 
-Re-parse cost control: Claude sessions keep the parsed rows of every file and read only the appended bytes (parse.py
-rows_cache), but still rebuild the step model; Codex has no incremental reader and parses whole rollouts. Hence a minimum
-gap between two parses of one session (5 s Claude, 30 s Codex) and release of idle sessions after `releaseSec`.
+Re-parse cost control: each entry keeps a cache dict that the source's parse() may use for incremental reads (Claude keeps
+the parsed rows of every file and reads only the appended bytes, but still rebuilds the step model; Codex has no
+incremental reader and parses whole rollouts). Hence a minimum gap between two parses of one session (Source.reparse_gap:
+5 s Claude, 30 s Codex) and release of idle sessions after `releaseSec`.
 Strings are redacted per response (the page redacts its embedded data the same way, with redact.walk).
 """
 import os
@@ -15,12 +16,10 @@ import threading
 import time
 
 import live
-from parse import parse_session
-from parse_codex import parse_codex
+import sources
 from redact import walk
 
 OUT_CHARS, INP_CHARS = 600, 4000   # the caps render.build_html parses with
-MIN_GAP = {"claude": 5.0, "codex": 30.0}
 WARM_WAIT = 1.5                    # seconds a first request waits for the initial parse before answering "warming"
 HEAVY = ("turns", "briefing")      # fields left out of the per-agent statistics
 
@@ -38,13 +37,13 @@ class Entry:
         self.parsing = False
         self.error = ""
         self.rev = 0
-        self.rows = {}             # parse.read_rows_inc cache (Claude)
+        self.rows = {}             # per-session parse cache handed to Source.parse (Claude: parse.read_rows_inc)
         self.flat = {}             # agent id -> [(turn index, step)], rebuilt per parse
 
 
 class StepFeed:
     def __init__(self, files_fn, tree_fn):
-        """files_fn(row) -> files that make up the session; tree_fn(row) -> {thread id: path} for Codex, else None."""
+        """files_fn(row) -> files that make up the session; tree_fn(row) -> {agent id: path} (Source.tree)."""
         self.files_fn, self.tree_fn = files_fn, tree_fn
         self.entries = {}
         self.lock = threading.Lock()
@@ -59,10 +58,7 @@ class StepFeed:
 
     def _parse(self, e, row, sig, tree):
         try:
-            if row["tool"] == "codex":
-                data = parse_codex(row["id"], tree, row["name"], OUT_CHARS, INP_CHARS)
-            else:
-                data = parse_session(row["path"], row["name"], OUT_CHARS, INP_CHARS, rows_cache=e.rows)
+            data = sources.get(row["tool"]).parse(row["id"], tree, row["name"], OUT_CHARS, INP_CHARS, cache=e.rows)
             with e.lock:
                 e.data, e.sig, e.flat, e.error = data, sig, {}, ""
                 e.rev += 1
@@ -86,7 +82,7 @@ class StepFeed:
 
     def _maybe_parse(self, e, row, sig, now):
         """Start a background parse when the files changed and the minimum gap has passed."""
-        if e.parsing or (e.data is not None and (sig == e.sig or now - e.parsed_at < MIN_GAP.get(row["tool"], 5.0))):
+        if e.parsing or (e.data is not None and (sig == e.sig or now - e.parsed_at < sources.get(row["tool"]).reparse_gap)):
             return
         e.parsing = True
         e.done.clear()
