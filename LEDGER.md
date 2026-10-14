@@ -18,7 +18,7 @@ max-file-lines: 1000
   - 调研方式：4 个只读调研子代理（sonnet medium，只写 scratchpad），WebFetch 只给摘要，所以我对结果做了独立核对：DeepSeek、MiniMax、Mistral、OpenAI 旧型号（页面内嵌 JSON）、Anthropic 用原始页面逐项对过；Kimi、Z.ai、xAI（grok-4.7）在浏览器里对过；Qwen 4 个型号与 StepFun 对过。核对中剔除了 Z.ai 页面上已不存在的 8 个型号、推断出的 Claude Mythos 型号 ID、含糊的 ERNIE 5.x 与 MiMo v2.5
   - 未逐项核对（来自子代理，原样收录）：xAI 其余型号与 >200k 档、Cohere、Amazon Nova（取自 AWS 价格 JSON）、Perplexity、Meta Muse、Seed、MiMo v2.6、腾讯 hy、ERNIE 4.5 Turbo、Qwen 其余型号；Qwen 缓存命中价按官方缓存说明的「输入价 20%」推出，各条 `note` 已注明
 - 视觉验证现状：Gemini、opencode 回看页的总览、时间线、路线在合并版里亲眼看过；代理图网格在布局子代理的 16 并发演示数据下看过（1440×900、2000×1230）；合并后未在真实并发场景复现（Animy 会话当时没有在跑的子代理）
-- Gemini / opencode / Cursor 实时监控：未开始，放第二阶段
+- Gemini / opencode / Cursor 实时监控（第二阶段）：进行中。共享核心 `Live.follow(tail=...)` 已提交在 `phase2-live`（094a647）；三个来源各一个 sonnet/high 子代理（gemini-live、opencode-live、cursor-live，各自 worktree），完成后由集成会话合入 `phase2-live`、跑全量 `check.py`、写 README，再快进 `main`。
 
 ## 待解决 bug
 
