@@ -294,11 +294,11 @@
   },
   "opencode": {
     "_rules": [
-      "opencode runs models of many providers and has no price table of its own: a step is priced by its model name (provider prefixes such as anthropic/, Bedrock affixes and a date suffix are ignored) from the claude section, then the codex section of this file, with those sections' own rules (tiers, long context, cache write rates).",
+      "opencode runs models of many providers and has no price table of its own: a step is priced by its model name (provider prefixes such as anthropic/, Bedrock affixes and a date suffix are ignored) from the claude section, then the codex section, then the gemini section of this file, with those sections' own rules (tiers, long context, cache write rates, dated price changes).",
       "Token fields per assistant message: tokens.input = uncached input, cache.read / cache.write = cached parts, output and reasoning are separate counts; billed output = output + reasoning (shown as 'output, of which reasoning').",
-      "For the codex section, input is rebuilt as input + cache read + cache write before its rules apply, because that section expects input to include the cached parts.",
+      "For the codex and gemini sections, input is rebuilt as input + cache read + cache write before their rules apply, because those sections expect input to include the cached parts; for the gemini section the reasoning tokens are passed as thoughts, and the UTC date of the message selects its dated price changes.",
       "session.cost recorded by opencode is not used (it is often 0): every amount is computed from tokens and the prices above.",
-      "Models found in neither section are unpriced: their tokens are counted, the amount is left out of every total and the page says how many steps were skipped.",
+      "Models found in none of these sections are unpriced: their tokens are counted, the amount is left out of every total and the page says how many steps were skipped.",
       "Providers named ollama, lmstudio or llama.cpp run on this machine and cost 0 (marked local). Other models served through a gateway (for example org/model) are not guessed: they stay unpriced unless the model name matches a table above."
     ]
   }

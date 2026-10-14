@@ -17,6 +17,7 @@ Message errors become events of the turn: MessageAbortedError is an interruption
 A response that failed before producing anything has no step (nothing was generated or billed).
 """
 import re
+import time
 
 import prices
 import source_opencode
@@ -143,7 +144,8 @@ def build_thread(aid, sess, msgs, ctx, is_root):
                 event(_error_event(err, completed or created))
                 cur["_last"] = (completed, "error", err)
             continue
-        usage = {"in": tk["in"], "out": tk["out"], "rsn": tk["rsn"], "cr": tk["cr"], "cw": tk["cw"], "provider": d.get("providerID") or ""}
+        usage = {"in": tk["in"], "out": tk["out"], "rsn": tk["rsn"], "cr": tk["cr"], "cw": tk["cw"], "provider": d.get("providerID") or "",
+                 "day": time.strftime("%Y-%m-%d", time.gmtime(created / 1000)) if created else ""}
         pr = source_opencode.price_step(model, usage)
         cwd_m = (d.get("path") or {}).get("cwd") or cwd
         calls = []

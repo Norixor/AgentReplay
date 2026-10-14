@@ -5,8 +5,8 @@ row of their top-level session and into its tree. There is no live view: the dat
 store, and polling it is left out of this first version (live_supported = False).
 
 Pricing: opencode talks to many providers, so a step is priced by its model name from the tables the tool already has
-(the "claude" and "codex" sections of prices.json). A model found in neither is unpriced: its tokens count, its amount
-does not. The session's own cost column is not used (opencode leaves it at 0 for many setups).
+(the "claude", "codex" and "gemini" sections of prices.json, in that order). A model found in none is unpriced: its tokens
+count, its amount does not. The session's own cost column is not used (opencode leaves it at 0 for many setups).
 """
 import os
 import re
@@ -15,6 +15,7 @@ import prices
 import opencode_scan
 import source_claude
 import source_codex
+import source_gemini
 from scan_util import make_row
 from sources import Source
 
@@ -38,7 +39,8 @@ def lookup_names(model):
 
 
 def price_step(model, usage):
-    """Price one assistant message. usage = {in, cw, cr, out, rsn, provider}; see opencode_tokens."""
+    """Price one assistant message. usage = {in, cw, cr, out, rsn, provider, day}; see opencode_tokens. day (UTC, YYYY-MM-DD)
+    only matters for Gemini models, whose table can carry dated price changes."""
     tok = opencode_tokens(usage)
     if (usage.get("provider") or "").lower() in LOCAL_PROVIDERS:
         return prices.result(0.0, tok, True, local=True)
@@ -50,6 +52,11 @@ def price_step(model, usage):
             return prices.result(r["cost"], tok, r["priced"])
         if name in ((table.get("codex") or {}).get("models") or {}):
             r = source_codex.price_step(name, {"in": tok["in"] + tok["cw5"] + tok["cr"], "cached": tok["cr"], "cw": tok["cw5"], "out": tok["out"], "rsn": tok["rsn"]})
+            return prices.result(r["cost"], tok, r["priced"])
+        if name in ((table.get("gemini") or {}).get("models") or {}):
+            # the gemini section expects input to contain the cached part, and thoughts apart from output
+            r = source_gemini.price_step(name, {"input": tok["in"] + tok["cw5"] + tok["cr"], "cached": tok["cr"],
+                                                "output": tok["out"] - tok["rsn"], "thoughts": tok["rsn"], "day": usage.get("day") or ""})
             return prices.result(r["cost"], tok, r["priced"])
     return prices.result(None, tok, False)
 

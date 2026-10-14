@@ -4,7 +4,7 @@ databases created here (WAL mode, like opencode's own); no real session data is 
 
 Covers: virtual session paths and their stat() following new messages (also from sub-sessions), the folded index row,
 the session tree, the page model (turns, steps, calls with measured durations, failed calls, sub-session link, error
-events), tokens and prices (cost column ignored, claude and codex tables, unknown model, local provider), empty or
+events), tokens and prices (cost column ignored, claude, codex and gemini tables, unknown model, local provider), empty or
 broken databases, and that the database is only ever read. Run directly, or import run() from scripts/check.py; run()
 returns (cases, failures).
 """
@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import config  # noqa: E402
 import index  # noqa: E402
 import opencode_scan  # noqa: E402
+import source_opencode  # noqa: E402
 import sources  # noqa: E402
 
 T0 = 1_700_000_000_000
@@ -215,6 +216,15 @@ def cases():
         case("unknown model: tokens counted, no amount, reported as unpriced", s2["cost"] is None and not s2["priced"] and s2["tok"]["in"] == 500 and data["totals"]["unpModels"] == ["mystery-1"] and data["totals"]["nUnp"] == 1)
         case("local provider costs nothing and is marked local", sub["cost"] == 0.0 and sub["nLocal"] == 1)
         case("total amount sums the priced steps only", near(data["totals"]["cost"], 0.0046 + 0.0088))
+        # gemini section: opencode's input excludes the cached part and reasoning is separate; the message day picks dated rates
+        gem = {"in": 1000, "cw": 0, "cr": 4000, "out": 150, "rsn": 50, "provider": "google"}
+        g1 = source_opencode.price_step("google/gemini-3.8-flash", dict(gem, day="2026-10-13"))
+        case("gemini-table model priced through provider prefix (3.8-flash: 0.75 / cached 0.075 / out 3.75, reasoning billed as output)",
+             g1["priced"] and near(g1["cost"], (1000 * 0.75 + 4000 * 0.075 + 200 * 3.75) / 1e6))
+        g2 = source_opencode.price_step("gemini-3.8-flash", dict(gem, day="2027-01-02"))
+        case("gemini price change applies from the message day on (2027-01-01: rates double)", near(g2["cost"], 2 * g1["cost"]))
+        case("gemini model without a message day uses the base rates", near(source_opencode.price_step("gemini-3.8-flash", gem)["cost"], g1["cost"]))
+        case("gemini tokens keep the opencode shape (out includes reasoning)", g1["tok"]["in"] == 1000 and g1["tok"]["cr"] == 4000 and g1["tok"]["out"] == 200 and g1["tok"]["rsn"] == 50)
         case("meta: tool, models, project, pricing rules", data["meta"]["tool"] == "opencode" and data["meta"]["models"] == ["anthropic/claude-sonnet-5-5-20260101", "gpt-5.6-terra", "mystery-1", "qwen3:8b"]
              and data["meta"]["project"] == "/work/proj" and data["meta"]["pricing"]["rules"])
         json.dumps(data)
