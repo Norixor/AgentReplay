@@ -96,8 +96,11 @@ def cases():
     case("codex: exactly 272000 input tokens is not long context", near(r["cost"], 272000 * 2 / 1e6))
     r = source_codex.price_step("gpt-6-sol", {"in": 300000, "cached": 0, "cw": 10000, "out": 0})
     case("codex: long context cache write keeps its premium (rate scaled by long / base input)", near(r["cost"], (290000 * 4 + 10000 * 5) / 1e6))
-    r = source_codex.price_step("gpt-6-luna", {"in": 300000, "cached": 0, "cw": 0, "out": 0})
-    case("codex: a model without long-context rates keeps the base rates", near(r["cost"], 300000 * 0.1 / 1e6))
+    r = source_codex.price_step("gpt-5.3-codex", {"in": 300000, "cached": 0, "cw": 0, "out": 0})
+    case("codex: a model without long-context rates keeps the base rates", near(r["cost"], 300000 * 1.75 / 1e6))
+    # gpt-6-luna: in 0.1, out 0.5; over 272000 input: in 0.2, cached 0.02, cache write 0.25, out 0.75 (listed on the page)
+    r = source_codex.price_step("gpt-6-luna", {"in": 300000, "cached": 100000, "cw": 0, "out": 1000})
+    case("codex: a long tier that lists its cached input uses it (gpt-6-luna)", near(r["cost"], (200000 * 0.2 + 100000 * 0.02 + 1000 * 0.75) / 1e6))
     # a pro-style model lists no cached-input price (null): cached tokens bill as uncached input instead of failing
     r = with_model("codex", "tmp-pro", {"input": 10, "cached_input": None, "cache_write": None, "output": 40},
                    lambda: source_codex.price_step("tmp-pro", {"in": 1000, "cached": 400, "cw": 0, "out": 10}))
@@ -155,6 +158,28 @@ def cases():
          r["oc"]["priced"] and near(r["oc"]["cost"], (1000 * 1 + 2000 * 1.25 + 10000 * 0.1 + 500 * 4) / 1e6) and r["oc"]["tok"]["rsn"] == 100)
     case("other: opencode finds it through a gateway prefix and an alias", r["oc_prefix"]["priced"] and near(r["oc_prefix"]["cost"], (1000 * 1 + 10 * 4) / 1e6))
     case("other: the real table is untouched after the synthetic one", prices.other_step("vend-a", tok) is None)
+    # the shipped table itself: shape and name hygiene (the numbers are checked against the vendors' pages when they are read)
+    import re
+    table = prices.load()
+    other = (table.get("other") or {}).get("models") or {}
+    keys = {sec: set((table.get(sec) or {}).get("models") or {}) for sec in ("claude", "codex", "gemini", "other")}
+
+    def rate_ok(e, skip=("vendor", "source", "note", "_note", "aliases", "changes", "long_context", "tiers", "match")):
+        return all(isinstance(v, (int, float)) and v >= 0 for k, v in e.items() if k not in skip and v is not None and not k.startswith("_"))
+    case("table: other section is present with a read date", len(other) >= 50 and bool((table.get("read_dates") or {}).get("other")))
+    case("table: every other entry has a vendor, an https source, non-negative numeric rates",
+         all(e.get("vendor") and str(e.get("source", "")).startswith("https://") and isinstance(e.get("input"), (int, float)) and isinstance(e.get("output"), (int, float)) and rate_ok(e) for e in other.values()))
+    case("table: long_context and changes of the other entries are well formed",
+         all((not e.get("long_context") or (isinstance(e["long_context"].get("over_input_tokens"), int) and rate_ok(e["long_context"], ("over_input_tokens",))))
+             and all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", c.get("from", "")) for c in e.get("changes") or ()) for e in other.values()))
+    case("table: model names are lower case and no model is priced in two sections",
+         all(k == k.lower() for sec in keys.values() for k in sec) and len(keys["other"] & (keys["claude"] | keys["codex"] | keys["gemini"])) == 0)
+    names = {}
+    clash = [a for k, e in other.items() for a in e.get("aliases") or () if a in names and names[a] != k or names.setdefault(a, k) is None]
+    case("table: an alias is lower case and names no model of any section and no other model's alias",
+         not clash and all(a == a.lower() and not any(a in sec for sec in keys.values()) for e in other.values() for a in e.get("aliases") or ()))
+    spot = prices.other_step("deepseek-v4-pro", {"in": 1000000, "cw5": 0, "cw1": 0, "cr": 0, "out": 0})
+    case("table: a listed other-vendor model prices through other_step", spot is not None and spot > 0)
     return out
 
 

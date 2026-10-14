@@ -21,7 +21,7 @@ from sources import Source
 
 LOCAL_PROVIDERS = ("ollama", "lmstudio", "llama.cpp", "llamacpp")  # providers that run models on this machine: cost 0
 _VENDOR_PREFIX = re.compile(r"^(?:[a-z0-9_.-]+/)+")  # openrouter / gateway style "anthropic/claude-..."
-_BEDROCK = re.compile(r"^(?:(?:us|eu|apac|global)\.)?anthropic\.|-v\d+(?::\d+)?$")
+_BEDROCK = re.compile(r"^(?:(?:us|eu|apac|global)\.)?(?:anthropic|amazon|meta|mistral|cohere|deepseek|qwen|moonshot|writer|ai21)\.|-v\d+(?::\d+)?$")
 
 
 def opencode_tokens(usage):

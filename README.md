@@ -150,7 +150,7 @@ cd AgentReplay
 **opencode**（`<opencode 目录>/opencode*.db`，一个 SQLite 数据库，内含所有项目的全部会话）
 
 - 能看到：用户消息、每次模型响应（一条助手消息一步）的 token 用量（含推理、缓存读取、缓存写入）、带起止时间的工具调用（命令、读写、搜索、网页抓取等，含失败与非零退出码）、`reasoning` 推理摘要、通过 `parent_id` 关联的子会话（`task` 工具派出）及其简报、中断与模型调用出错、会话标题与归档状态。
-- 局限：没有实时页（数据库是 opencode 自己的工作库，这里只读，不做轮询）；金额按模型名匹配 `claude`、`codex`、`gemini` 三段价格表计算，匹配不上的模型（以及经网关使用的 `org/model` 名）没有金额，token 照常统计；opencode 自己记录的 `cost` 常为 0，不使用。工具的大块输出被 opencode 另存到 `tool-output/` 时，页面只有数据库里保留的那部分。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
+- 局限：没有实时页（数据库是 opencode 自己的工作库，这里只读，不做轮询）；金额按模型名匹配 `claude`、`codex`、`gemini`、`other` 四段价格表计算，匹配不上的模型（以及经网关使用的 `org/model` 名）没有金额，token 照常统计；opencode 自己记录的 `cost` 常为 0，不使用。工具的大块输出被 opencode 另存到 `tool-output/` 时，页面只有数据库里保留的那部分。数据库以只读方式打开，但对 WAL 模式的库，SQLite 可能在目录里建立 `-wal`、`-shm` 辅助文件；库内容不会被修改。
 
 **Cursor**（`<cursor 目录>/User/globalStorage/state.vscdb`，Cursor 编辑器的一个 SQLite 数据库，内含所有工作区的聊天）
 
@@ -186,14 +186,15 @@ cd AgentReplay
 
 ### `src/prices.json`
 
-所有金额都是按官方 API 标价算出的**美元估算值，不是账单**：订阅套餐（Claude Max、ChatGPT 套餐）不按 token 计费，金额只用于比较和定位成本。文件里每个工具（`claude`、`codex`、`gemini`）各有一段：
+所有金额都是按官方 API 标价算出的**美元估算值，不是账单**：订阅套餐（Claude Max、ChatGPT 套餐）不按 token 计费，金额只用于比较和定位成本。文件里每个工具（`claude`、`codex`、`gemini`）各有一段，另有 `other` 段收录其他厂商的模型：
 
 - `sources` 与 `read_date`：价格出处（Claude：platform.claude.com 价格页；OpenAI：developers.openai.com 价格页，Standard 档；Gemini：ai.google.dev 价格页，Standard 档）和读取日期，总览底部的注释会显示这两项。某个来源单独读取的日期写在 `read_dates.<来源>`，优先于全局的 `read_date`。
 - `models`：每百万 token 的美元价，按**完整模型名**匹配（先去掉末尾的日期后缀，`claude-haiku-4-5-20251001` 对应 `claude-haiku-4-5`）。Claude 条目有 `input`、`cache_write_5m`、`cache_write_1h`、`cache_read`、`output`；Haiku 5.5 用 `tiers`，按单次请求的提示长度（`max_prompt_tokens`，`null` 表示不设上限）选档。Codex 条目有 `input`、`cached_input`、`cache_write`（`null` 表示没有单独的缓存写入价，按未缓存输入计）、`output`，以及可选的 `long_context`。Gemini 条目有 `input`、`cached_input`、`output`，可选的 `long_context`（提示超过 `over_prompt_tokens` 时整次请求按它计价）和 `changes`（价格页预告的、从某个 UTC 日期起生效的新价格，按消息日期取已生效的最后一条）。
 - `_rules`：`src/prices.py` 实际执行的计价规则。Claude 缓存写入按 TTL 分别计价（没有细分时整笔按 5 分钟）；`usage.inference_geo` 为 `us` 时乘 1.1；`service_tier` 不是 standard（快速模式）时按标准价计并标记出来。Codex 的输入已经包含缓存输入和缓存写入（未缓存 = 输入 − 缓存输入 − 缓存写入），输出已经包含推理 token；输入超过 27.2 万 token 时用长上下文价，其中缓存输入取长上下文输入价的 10%（这是假设，价格页没有列出；长上下文的缓存写入按该模型缓存写入价乘以长上下文与普通输入价的比值）。Gemini 的 `input` 已经包含 `cached`（未缓存 = 输入 − 缓存），缓存部分按缓存价；思考 token 按输出价计并在页面上作为输出的一部分单独列出；工具提示 token（`tool`）按输入价计（价格页没有单列，属于假设）。按模态区分的价格（音频）一律按文本价计；搜索接地、显式缓存存储和批处理等档位不检测。
 - `unpriced`：已知不在价格表里的模型，例如 `gpt-5.3-codex-spark`、`gpt-4.5`、`gemini-3-pro`。不在表里的模型没有金额：token 照常统计，金额不计入任何合计，页面会写明“N 步模型未定价，未计入金额”。本地或开源模型（名字里带 `/` 或 `:`，或以 `ollama` 开头）金额记为 0，并标明是本地模型。
 
-- `opencode` 段没有自己的价格，只有 `_rules`：opencode 使用多家提供商的模型，按模型名（忽略 `anthropic/` 之类的前缀、Bedrock 前后缀和日期后缀）依次在 `claude`、`codex`、`gemini` 三段里找；opencode 的输入不含缓存部分、推理单独计数，进入 `codex`、`gemini` 段规则前会换算成它们要求的形态（`gemini` 段按消息的 UTC 日期取按日期生效的价格变动）。名为 `ollama`、`lmstudio`、`llama.cpp` 的提供商记为本地模型（金额 0）；其他匹配不上的模型不猜价格。
+- `other` 段（xAI、DeepSeek、Moonshot、Z.ai、MiniMax、Mistral、Meta、Amazon Nova、Perplexity、Cohere、阿里 Qwen、字节 Seed、小米 MiMo、腾讯混元、StepFun、百度 ERNIE 等厂商的模型）：每个模型有 `vendor`、`input`、`cached_input`、`cache_write`（厂商没列的就缺省，对应的 token 按未缓存输入价计）、`output`，可选的 `long_context`（提示超过 `over_input_tokens` 时整个请求按它列出的价格计）、`changes`（已公布、从某个 UTC 日期起生效的调价）、`aliases`（同价的其他写法），以及**每个模型自己的出处** `source` 和说明 `note`。价格都取自厂商自己的价格页（不用 OpenRouter 之类聚合站的价格，那是别人托管的价格，常与官方不同）；价格页没有标价的型号（已下线、预览、只有开源权重）记在 `unpriced`，不猜。有峰谷价或促销价的（如 DeepSeek 的峰时价、Mistral Large 4 的促销价）取页面上的标准价并在 `note` 里写明，所以估算可能比非峰时的实际花费高。更新时改数字、`source` 和 `read_dates.other`。
+- `opencode` 段没有自己的价格，只有 `_rules`：opencode 使用多家提供商的模型，按模型名（忽略 `anthropic/` 之类的前缀、Bedrock 前后缀和日期后缀）依次在 `claude`、`codex`、`gemini`、`other` 四段里找；opencode 的输入不含缓存部分、推理单独计数，进入 `codex`、`gemini` 段规则前会换算成它们要求的形态（`gemini` 段按消息的 UTC 日期取按日期生效的价格变动）。名为 `ollama`、`lmstudio`、`llama.cpp` 的提供商记为本地模型（金额 0）；其他匹配不上的模型不猜价格。
 
 更新价格：改数字（和 `read_date`）后重启服务；旧价格生成的缓存页面会自动重新生成，因为这个文件属于代码签名的一部分。改了规则之后运行 `python3 scripts/test_prices.py`。
 

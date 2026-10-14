@@ -2,7 +2,8 @@
   "_about": "Estimated API list prices in USD per 1M tokens. Subscription plans (Claude Max, ChatGPT plans) are not billed per token, so amounts are for comparison and locating cost only. To update: edit the numbers below, set read_date and keep the sources.",
   "read_date": "2026-10-13",
   "read_dates": {
-    "gemini": "2026-10-13"
+    "gemini": "2026-10-13",
+    "other": "2026-10-13"
   },
   "sources": {
     "claude": "https://platform.claude.com/docs/en/about-claude/pricing",
@@ -95,9 +96,79 @@
         "cache_write_1h": 2,
         "cache_read": 0.1,
         "output": 5
+      },
+      "claude-fable-5": {
+        "input": 10,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20,
+        "cache_read": 1,
+        "output": 50
+      },
+      "claude-opus-4-8": {
+        "input": 5,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10,
+        "cache_read": 0.5,
+        "output": 25
+      },
+      "claude-opus-4-7": {
+        "input": 5,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10,
+        "cache_read": 0.5,
+        "output": 25
+      },
+      "claude-opus-4-6": {
+        "input": 5,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10,
+        "cache_read": 0.5,
+        "output": 25
+      },
+      "claude-opus-4-5": {
+        "input": 5,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10,
+        "cache_read": 0.5,
+        "output": 25
+      },
+      "claude-opus-4-1": {
+        "input": 15,
+        "cache_write_5m": 18.75,
+        "cache_write_1h": 30,
+        "cache_read": 1.5,
+        "output": 75,
+        "_note": "Page marks retired except on Bedrock and Google Cloud; price still listed."
+      },
+      "claude-opus-4": {
+        "input": 15,
+        "cache_write_5m": 18.75,
+        "cache_write_1h": 30,
+        "cache_read": 1.5,
+        "output": 75,
+        "_note": "Retired except on Google Cloud; price still listed."
+      },
+      "claude-sonnet-4": {
+        "input": 3,
+        "cache_write_5m": 3.75,
+        "cache_write_1h": 6,
+        "cache_read": 0.3,
+        "output": 15,
+        "_note": "Retired except on Bedrock and Google Cloud; price still listed."
+      },
+      "claude-3-5-haiku": {
+        "input": 0.8,
+        "cache_write_5m": 1,
+        "cache_write_1h": 1.6,
+        "cache_read": 0.08,
+        "output": 4,
+        "_note": "Page name 'Claude Haiku 3.5'; API ID is claude-3-5-haiku. Retired except on Google Cloud; price still listed."
       }
     },
-    "match": "Strip a trailing date suffix such as -20251001 before lookup (claude-haiku-4-5-20251001 -> claude-haiku-4-5). '<synthetic>' rows are not billed."
+    "match": "Strip a trailing date suffix such as -20251001 before lookup (claude-haiku-4-5-20251001 -> claude-haiku-4-5). '<synthetic>' rows are not billed.",
+    "unpriced": {
+      "claude-haiku-3": "Not listed on the official pricing page."
+    }
   },
   "codex": {
     "_rules": [
@@ -126,13 +197,27 @@
         "input": 10,
         "cached_input": 1.0,
         "cache_write": 12.5,
-        "output": 50
+        "output": 50,
+        "long_context": {
+          "over_input_tokens": 272000,
+          "input": 20,
+          "cached_input": 2,
+          "cache_write": 25,
+          "output": 75
+        }
       },
       "gpt-6-luna": {
         "input": 0.1,
         "cached_input": 0.01,
         "cache_write": 0.125,
-        "output": 0.5
+        "output": 0.5,
+        "long_context": {
+          "over_input_tokens": 272000,
+          "input": 0.2,
+          "cached_input": 0.02,
+          "cache_write": 0.25,
+          "output": 0.75
+        }
       },
       "gpt-5.6-sol": {
         "input": 4,
@@ -180,6 +265,208 @@
         "cached_input": 0.175,
         "cache_write": null,
         "output": 14
+      },
+      "gpt-6.1-sol": {
+        "input": 2,
+        "cached_input": 0.1,
+        "cache_write": 2.5,
+        "output": 10,
+        "long_context": {
+          "over_input_tokens": 272000,
+          "input": 4,
+          "cached_input": 0.2,
+          "cache_write": 5,
+          "output": 15
+        },
+        "_note": "Long-context cached input 0.2, cache write 5 (not representable in the long_context format)."
+      },
+      "gpt-5.5-pro": {
+        "input": 30,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 180,
+        "_note": "Page labels row '<272K context length'; no >272K row shown."
+      },
+      "gpt-5.4-pro": {
+        "input": 30,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 180,
+        "_note": "Page labels row '<272K context length'; no >272K row shown."
+      },
+      "gpt-5.4-mini": {
+        "input": 0.75,
+        "cached_input": 0.075,
+        "cache_write": null,
+        "output": 4.5
+      },
+      "gpt-5.4-nano": {
+        "input": 0.2,
+        "cached_input": 0.02,
+        "cache_write": null,
+        "output": 1.25
+      },
+      "gpt-5.2": {
+        "input": 1.75,
+        "cached_input": 0.175,
+        "cache_write": null,
+        "output": 14
+      },
+      "gpt-5.2-pro": {
+        "input": 21,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 168
+      },
+      "gpt-5.1": {
+        "input": 1.25,
+        "cached_input": 0.125,
+        "cache_write": null,
+        "output": 10
+      },
+      "gpt-5": {
+        "input": 1.25,
+        "cached_input": 0.125,
+        "cache_write": null,
+        "output": 10
+      },
+      "gpt-5-mini": {
+        "input": 0.25,
+        "cached_input": 0.025,
+        "cache_write": null,
+        "output": 2
+      },
+      "gpt-5-nano": {
+        "input": 0.05,
+        "cached_input": 0.005,
+        "cache_write": null,
+        "output": 0.4
+      },
+      "gpt-5-pro": {
+        "input": 15,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 120
+      },
+      "gpt-4.1": {
+        "input": 2,
+        "cached_input": 0.5,
+        "cache_write": null,
+        "output": 8
+      },
+      "gpt-4.1-mini": {
+        "input": 0.4,
+        "cached_input": 0.1,
+        "cache_write": null,
+        "output": 1.6
+      },
+      "gpt-4.1-nano": {
+        "input": 0.1,
+        "cached_input": 0.025,
+        "cache_write": null,
+        "output": 0.4
+      },
+      "gpt-4o": {
+        "input": 2.5,
+        "cached_input": 1.25,
+        "cache_write": null,
+        "output": 10
+      },
+      "gpt-4o-2024-05-13": {
+        "input": 5,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 15,
+        "_note": "Dated snapshot with its own higher price (page row gpt-4o-2024-05-13)."
+      },
+      "gpt-4o-mini": {
+        "input": 0.15,
+        "cached_input": 0.075,
+        "cache_write": null,
+        "output": 0.6
+      },
+      "o1": {
+        "input": 15,
+        "cached_input": 7.5,
+        "cache_write": null,
+        "output": 60
+      },
+      "o1-pro": {
+        "input": 150,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 600
+      },
+      "o3-pro": {
+        "input": 20,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 80
+      },
+      "o3": {
+        "input": 2,
+        "cached_input": 0.5,
+        "cache_write": null,
+        "output": 8
+      },
+      "o4-mini": {
+        "input": 1.1,
+        "cached_input": 0.275,
+        "cache_write": null,
+        "output": 4.4
+      },
+      "o3-mini": {
+        "input": 1.1,
+        "cached_input": 0.55,
+        "cache_write": null,
+        "output": 4.4
+      },
+      "gpt-4-turbo": {
+        "input": 10,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 30,
+        "_note": "Page row is gpt-4-turbo-2024-04-09."
+      },
+      "gpt-4": {
+        "input": 30,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 60,
+        "_note": "Page row is gpt-4-0613."
+      },
+      "gpt-3.5-turbo": {
+        "input": 0.5,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 1.5,
+        "_note": "Same price as gpt-3.5-turbo-0125 row (alias gpt-3.5-turbo-0125)."
+      },
+      "gpt-3.5-turbo-1106": {
+        "input": 1,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 2
+      },
+      "gpt-3.5-turbo-instruct": {
+        "input": 1.5,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 2
+      },
+      "davinci-002": {
+        "input": 2,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 2,
+        "_note": "Legacy completion model."
+      },
+      "babbage-002": {
+        "input": 0.4,
+        "cached_input": null,
+        "cache_write": null,
+        "output": 0.4,
+        "_note": "Legacy completion model."
       }
     },
     "unpriced": {
@@ -294,12 +581,1044 @@
   },
   "opencode": {
     "_rules": [
-      "opencode runs models of many providers and has no price table of its own: a step is priced by its model name (provider prefixes such as anthropic/, Bedrock affixes and a date suffix are ignored) from the claude section, then the codex section, then the gemini section of this file, with those sections' own rules (tiers, long context, cache write rates, dated price changes).",
+      "opencode runs models of many providers and has no price table of its own: a step is priced by its model name (provider prefixes such as anthropic/, Bedrock affixes and a date suffix are ignored) from the claude section, then the codex, gemini and other sections of this file (the other section holds every other vendor: xAI, DeepSeek, Moonshot, Z.ai, MiniMax, Mistral, Qwen, ...), with those sections' own rules (tiers, long context, cache write rates, dated price changes).",
       "Token fields per assistant message: tokens.input = uncached input, cache.read / cache.write = cached parts, output and reasoning are separate counts; billed output = output + reasoning (shown as 'output, of which reasoning').",
-      "For the codex and gemini sections, input is rebuilt as input + cache read + cache write before their rules apply, because those sections expect input to include the cached parts; for the gemini section the reasoning tokens are passed as thoughts, and the UTC date of the message selects its dated price changes.",
+      "For the codex and gemini sections (and, with the same meaning of input, the other section), input is rebuilt as input + cache read + cache write before their rules apply, because those sections expect input to include the cached parts; for the gemini section the reasoning tokens are passed as thoughts, and the UTC date of the message selects its dated price changes.",
       "session.cost recorded by opencode is not used (it is often 0): every amount is computed from tokens and the prices above.",
       "Models found in none of these sections are unpriced: their tokens are counted, the amount is left out of every total and the page says how many steps were skipped.",
       "Providers named ollama, lmstudio or llama.cpp run on this machine and cost 0 (marked local). Other models served through a gateway (for example org/model) are not guessed: they stay unpriced unless the model name matches a table above."
     ]
+  },
+  "other": {
+    "_rules": [
+      "Standard pay-as-you-go list prices in USD per million tokens of every vendor that has no section of its own, read from the vendor's own pricing page (the source field of each model; no aggregator prices). The models are found by name (the key or one of its aliases; gateway prefixes such as x-ai/ and a trailing -YYYYMMDD are ignored). Used for steps of tools that run models of many vendors (opencode).",
+      "Billing: uncached input x input + cache read x cached_input + cache write x cache_write + output x output. A missing cached_input or cache_write means the vendor lists no such rate: those tokens bill as uncached input. Output includes the reasoning tokens.",
+      "long_context: when the prompt (uncached input + cache read + cache write) is over over_input_tokens, the whole request is billed at the rates the long_context block lists (the other rates stay as they are).",
+      "changes: price changes the vendor has already announced, applied from the given UTC day on (the date of the message decides).",
+      "Peak / off-peak or sale prices: the standard (peak or listed) price is used and the note says what else the page shows, so an amount can be higher than the bill for off-peak use. Batch, priority, flex, free tiers, per-request search fees and subscription plans are not part of the estimate.",
+      "Models of these vendors that the official page does not list (retired, preview, open weights without a first-party price) are in unpriced: their tokens are counted, the amount is left out of every total and the page says how many steps were skipped. Names with a slash or a colon that no entry matches are treated as local models and cost 0."
+    ],
+    "models": {
+      "nova-2-lite-v1": {
+        "vendor": "Amazon",
+        "input": 0.33,
+        "output": 2.75,
+        "source": "https://aws.amazon.com/bedrock/pricing/",
+        "note": "Price from AWS Bedrock Standard tier price list (per 1000 tokens x1000); US East (N. Virginia) rate, global/geo cross-region page. Page footnote says cache read is 75% less than input but table placement unclear, so cached_input left null.",
+        "aliases": [
+          "nova-2-lite"
+        ]
+      },
+      "nova-lite-v1": {
+        "vendor": "Amazon",
+        "input": 0.06,
+        "output": 0.24,
+        "source": "https://aws.amazon.com/bedrock/pricing/",
+        "note": "Price from AWS Bedrock Standard tier price list (per 1000 tokens x1000); US East (N. Virginia) rate, global/geo cross-region page. Page footnote says cache read is 75% less than input but table placement unclear, so cached_input left null.",
+        "aliases": [
+          "nova-lite"
+        ]
+      },
+      "nova-micro-v1": {
+        "vendor": "Amazon",
+        "input": 0.035,
+        "output": 0.14,
+        "source": "https://aws.amazon.com/bedrock/pricing/",
+        "note": "Price from AWS Bedrock Standard tier price list (per 1000 tokens x1000); US East (N. Virginia) rate, global/geo cross-region page. Page footnote says cache read is 75% less than input but table placement unclear, so cached_input left null.",
+        "aliases": [
+          "nova-micro"
+        ]
+      },
+      "nova-premier-v1": {
+        "vendor": "Amazon",
+        "input": 2.5,
+        "output": 12.5,
+        "source": "https://aws.amazon.com/bedrock/pricing/",
+        "note": "Price from AWS Bedrock Standard tier price list (per 1000 tokens x1000); US East (N. Virginia) rate, global/geo cross-region page. Page footnote says cache read is 75% less than input but table placement unclear, so cached_input left null.",
+        "aliases": [
+          "nova-premier"
+        ]
+      },
+      "nova-pro-v1": {
+        "vendor": "Amazon",
+        "input": 0.8,
+        "output": 3.2,
+        "source": "https://aws.amazon.com/bedrock/pricing/",
+        "note": "Price from AWS Bedrock Standard tier price list (per 1000 tokens x1000); US East (N. Virginia) rate, global/geo cross-region page. Page footnote says cache read is 75% less than input but table placement unclear, so cached_input left null.",
+        "aliases": [
+          "nova-pro"
+        ]
+      },
+      "command-r-03-2024": {
+        "vendor": "Cohere",
+        "input": 0.5,
+        "output": 1.5,
+        "source": "https://cohere.com/pricing",
+        "note": "Legacy / existing customers; not the 08-2024 snapshot"
+      },
+      "command-r-plus-08-2024": {
+        "vendor": "Cohere",
+        "input": 2.5,
+        "output": 10.0,
+        "source": "https://cohere.com/pricing",
+        "note": "Listed under legacy / existing customers"
+      },
+      "deepseek-flash": {
+        "vendor": "DeepSeek",
+        "input": 0.3,
+        "cached_input": 0.006,
+        "output": 1.2,
+        "aliases": [
+          "deepseek-v4.1-flash",
+          "deepseek-v4-flash",
+          "deepseek-v4-flash-vision-exp"
+        ],
+        "source": "https://api-docs.deepseek.com/quick_start/pricing",
+        "note": "Peak price (01:00-04:00 and 06:00-10:00 UTC Mon-Fri, excl. CN holidays); off-peak is half. Page does not label currency, '$' shown. 1M context. Legacy v4-flash names are now billed at this price."
+      },
+      "deepseek-v4-pro": {
+        "vendor": "DeepSeek",
+        "input": 1.32,
+        "cached_input": 0.044,
+        "output": 3.96,
+        "aliases": [
+          "deepseek-v4-pro-0813"
+        ],
+        "source": "https://api-docs.deepseek.com/quick_start/pricing",
+        "note": "Peak price (01:00-04:00 and 06:00-10:00 UTC Mon-Fri, excl. CN holidays); off-peak is half. Page does not label currency, '$' shown. 1M context."
+      },
+      "muse-spark-1.3": {
+        "vendor": "Meta",
+        "input": 1.25,
+        "cached_input": 0.15,
+        "output": 4.25,
+        "source": "https://dev.meta.ai/models/muse-spark/",
+        "note": "Tier 'not used to improve our products'."
+      },
+      "muse-spark-1.3-contributor": {
+        "vendor": "Meta",
+        "input": 0.1,
+        "cached_input": 0.002,
+        "output": 0.2,
+        "source": "https://dev.meta.ai/models/muse-spark/",
+        "note": "Tier where data is used to improve Meta products."
+      },
+      "minimax-m2": {
+        "vendor": "MiniMax",
+        "input": 0.3,
+        "cached_input": 0.03,
+        "cache_write": 0.375,
+        "output": 1.2,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "note": "Legacy model."
+      },
+      "minimax-m2.1": {
+        "vendor": "MiniMax",
+        "input": 0.3,
+        "cached_input": 0.03,
+        "cache_write": 0.375,
+        "output": 1.2,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "note": "Legacy model."
+      },
+      "minimax-m2.1-highspeed": {
+        "vendor": "MiniMax",
+        "input": 0.6,
+        "cached_input": 0.03,
+        "cache_write": 0.375,
+        "output": 2.4,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "note": "Legacy model."
+      },
+      "minimax-m2.5": {
+        "vendor": "MiniMax",
+        "input": 0.3,
+        "cached_input": 0.03,
+        "cache_write": 0.375,
+        "output": 1.2,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "note": "Legacy model."
+      },
+      "minimax-m2.5-highspeed": {
+        "vendor": "MiniMax",
+        "input": 0.6,
+        "cached_input": 0.03,
+        "cache_write": 0.375,
+        "output": 2.4,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "note": "Legacy model."
+      },
+      "minimax-m2.7": {
+        "vendor": "MiniMax",
+        "input": 0.3,
+        "cached_input": 0.06,
+        "cache_write": 0.375,
+        "output": 1.2,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo"
+      },
+      "minimax-m2.7-highspeed": {
+        "vendor": "MiniMax",
+        "input": 0.6,
+        "cached_input": 0.06,
+        "cache_write": 0.375,
+        "output": 2.4,
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo"
+      },
+      "minimax-m3": {
+        "vendor": "MiniMax",
+        "input": 0.3,
+        "cached_input": 0.06,
+        "output": 1.2,
+        "long_context": {
+          "over_input_tokens": 512000,
+          "input": 0.6,
+          "cached_input": 0.12,
+          "output": 2.4
+        },
+        "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+        "note": "Page labels these as permanent 50% off prices; cache write not listed. Priority tier excluded."
+      },
+      "codestral": {
+        "vendor": "Mistral",
+        "input": 0.3,
+        "cached_input": 0.03,
+        "output": 0.9,
+        "aliases": [
+          "codestral-2508"
+        ],
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "alias inferred"
+      },
+      "ministral-14b": {
+        "vendor": "Mistral",
+        "input": 0.2,
+        "cached_input": 0.02,
+        "output": 0.2,
+        "aliases": [
+          "ministral-14b-2512"
+        ],
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "page name: Ministral 3 14B"
+      },
+      "ministral-3b": {
+        "vendor": "Mistral",
+        "input": 0.1,
+        "cached_input": 0.01,
+        "output": 0.1,
+        "aliases": [
+          "ministral-3b-2512"
+        ],
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "page name: Ministral 3 3B"
+      },
+      "ministral-8b": {
+        "vendor": "Mistral",
+        "input": 0.15,
+        "cached_input": 0.015,
+        "output": 0.15,
+        "aliases": [
+          "ministral-8b-2512"
+        ],
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "page name: Ministral 3 8B"
+      },
+      "mistral-large-3": {
+        "vendor": "Mistral",
+        "input": 0.5,
+        "cached_input": 0.05,
+        "output": 1.5,
+        "aliases": [
+          "mistral-large-2512"
+        ],
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "alias mapping to 2512 is inferred from candidate list, not stated on page"
+      },
+      "mistral-large-4": {
+        "vendor": "Mistral",
+        "input": 0.68,
+        "cached_input": 0.07,
+        "output": 2.09,
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "Page shows SALE price (original 1.36/4.18, cached 0.14), no end date given. API id not confirmed by page (candidate list: mistral-large-4-0)."
+      },
+      "mistral-medium-3.5": {
+        "vendor": "Mistral",
+        "input": 1.5,
+        "cached_input": 0.15,
+        "output": 7.5,
+        "source": "https://docs.mistral.ai/inference/pricing"
+      },
+      "mistral-small-4": {
+        "vendor": "Mistral",
+        "input": 0.15,
+        "cached_input": 0.015,
+        "output": 0.6,
+        "aliases": [
+          "mistral-small-2603"
+        ],
+        "source": "https://docs.mistral.ai/inference/pricing",
+        "note": "alias mistral-small-2603 inferred (candidate list), not stated on page"
+      },
+      "kimi-k2.6": {
+        "vendor": "Moonshot",
+        "input": 0.95,
+        "cached_input": 0.16,
+        "output": 4.0,
+        "source": "https://platform.kimi.ai/docs/pricing/chat"
+      },
+      "kimi-k2.7-code": {
+        "vendor": "Moonshot",
+        "input": 0.95,
+        "cached_input": 0.19,
+        "output": 4.0,
+        "source": "https://platform.kimi.ai/docs/pricing/chat"
+      },
+      "kimi-k2.7-code-highspeed": {
+        "vendor": "Moonshot",
+        "input": 1.9,
+        "cached_input": 0.38,
+        "output": 8.0,
+        "source": "https://platform.kimi.ai/docs/pricing/chat"
+      },
+      "kimi-k3": {
+        "vendor": "Moonshot",
+        "input": 3.0,
+        "cached_input": 0.3,
+        "cache_write": 3.0,
+        "output": 15.0,
+        "source": "https://platform.kimi.ai/docs/pricing/chat",
+        "note": "Cache write 5min TTL $3.00 (default), 1h TTL $6.00."
+      },
+      "sonar": {
+        "vendor": "Perplexity",
+        "input": 1.0,
+        "output": 1.0,
+        "source": "https://docs.perplexity.ai/guides/pricing",
+        "note": "Plus per-request search fee (per 1K requests): $5 low/$8 medium/$12 high"
+      },
+      "sonar-deep-research": {
+        "vendor": "Perplexity",
+        "input": 2.0,
+        "output": 8.0,
+        "source": "https://docs.perplexity.ai/guides/pricing",
+        "note": "No request fee; plus citation tokens $2/1M, reasoning tokens $3/1M (not output price), search queries $5/1K"
+      },
+      "sonar-pro": {
+        "vendor": "Perplexity",
+        "input": 3.0,
+        "output": 15.0,
+        "source": "https://docs.perplexity.ai/guides/pricing",
+        "note": "Plus per-request search fee (per 1K requests): $6/$10/$14"
+      },
+      "sonar-reasoning-pro": {
+        "vendor": "Perplexity",
+        "input": 2.0,
+        "output": 8.0,
+        "source": "https://docs.perplexity.ai/guides/pricing",
+        "note": "Plus per-request search fee (per 1K requests): $6/$10/$14"
+      },
+      "glm-4.6": {
+        "vendor": "Z.ai",
+        "input": 0.6,
+        "cached_input": 0.11,
+        "output": 2.2,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-4.7": {
+        "vendor": "Z.ai",
+        "input": 0.6,
+        "cached_input": 0.11,
+        "output": 2.2,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-5": {
+        "vendor": "Z.ai",
+        "input": 1.0,
+        "cached_input": 0.2,
+        "output": 3.2,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-5.1": {
+        "vendor": "Z.ai",
+        "input": 1.4,
+        "cached_input": 0.26,
+        "output": 4.4,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-5.2": {
+        "vendor": "Z.ai",
+        "input": 1.4,
+        "cached_input": 0.26,
+        "output": 4.4,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-5.3": {
+        "vendor": "Z.ai",
+        "input": 1.4,
+        "cached_input": 0.26,
+        "output": 4.4,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-5.3-flash": {
+        "vendor": "Z.ai",
+        "input": 0.15,
+        "cached_input": 0.03,
+        "output": 0.5,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "glm-5.3-flashx": {
+        "vendor": "Z.ai",
+        "input": 0.37,
+        "cached_input": 0.075,
+        "output": 1.25,
+        "source": "https://docs.z.ai/guides/overview/pricing",
+        "note": "Cached input storage limited-time free."
+      },
+      "qwen-flash": {
+        "vendor": "alibaba",
+        "input": 0.05,
+        "cached_input": 0.01,
+        "output": 0.4,
+        "long_context": {
+          "over_input_tokens": 256000,
+          "input": 0.25,
+          "cached_input": 0.05,
+          "output": 2
+        },
+        "aliases": [
+          "qwen-flash-2025-07-28"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price."
+      },
+      "qwen-max": {
+        "vendor": "alibaba",
+        "input": 1.6,
+        "cached_input": 0.32,
+        "output": 6.4,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Non-thinking only."
+      },
+      "qwen-mt-flash": {
+        "vendor": "alibaba",
+        "input": 0.16,
+        "output": 0.49,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Translation model."
+      },
+      "qwen-mt-lite": {
+        "vendor": "alibaba",
+        "input": 0.12,
+        "output": 0.36,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Translation model."
+      },
+      "qwen-mt-plus": {
+        "vendor": "alibaba",
+        "input": 2.46,
+        "output": 7.37,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Translation model."
+      },
+      "qwen-plus": {
+        "vendor": "alibaba",
+        "input": 0.4,
+        "cached_input": 0.08,
+        "output": 4,
+        "long_context": {
+          "over_input_tokens": 256000,
+          "input": 1.2,
+          "cached_input": 0.24,
+          "output": 12
+        },
+        "aliases": [
+          "qwen-plus-latest",
+          "qwen-plus-2025-12-01"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Thinking output 4 / non-thinking 1.2 (tier 256K-1M: thinking 12 / non-thinking 3.6); thinking price used. Older snapshots qwen-plus-2025-07-14/04-28 flat 0.4/1.2/4 no tiers."
+      },
+      "qwen3-coder-flash": {
+        "vendor": "alibaba",
+        "input": 0.3,
+        "cached_input": 0.06,
+        "output": 1.5,
+        "long_context": {
+          "over_input_tokens": 32000,
+          "input": 0.5,
+          "cached_input": 0.1,
+          "output": 2.5
+        },
+        "aliases": [
+          "qwen3-coder-flash-2025-07-28"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Four tiers: 0-32K 0.3/1.5; 32K-128K 0.5/2.5; 128K-256K 0.8/4; 256K-1M 1.6/9.6."
+      },
+      "qwen3.5-122b-a10b": {
+        "vendor": "alibaba",
+        "input": 0.4,
+        "cached_input": 0.08,
+        "output": 3.2,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.5-27b": {
+        "vendor": "alibaba",
+        "input": 0.3,
+        "cached_input": 0.06,
+        "output": 2.4,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.5-35b-a3b": {
+        "vendor": "alibaba",
+        "input": 0.25,
+        "cached_input": 0.05,
+        "output": 2,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.5-397b-a17b": {
+        "vendor": "alibaba",
+        "input": 0.6,
+        "cached_input": 0.12,
+        "output": 3.6,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.5-flash": {
+        "vendor": "alibaba",
+        "input": 0.1,
+        "cached_input": 0.02,
+        "output": 0.4,
+        "aliases": [
+          "qwen3.5-flash-2026-02-23"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price."
+      },
+      "qwen3.5-plus": {
+        "vendor": "alibaba",
+        "input": 0.4,
+        "cached_input": 0.08,
+        "output": 2.4,
+        "long_context": {
+          "over_input_tokens": 256000,
+          "input": 0.5,
+          "cached_input": 0.1,
+          "output": 3
+        },
+        "aliases": [
+          "qwen3.5-plus-2026-04-20",
+          "qwen3.5-plus-2026-02-15"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.6-27b": {
+        "vendor": "alibaba",
+        "input": 0.6,
+        "cached_input": 0.12,
+        "output": 3.6,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.6-35b-a3b": {
+        "vendor": "alibaba",
+        "input": 0.375,
+        "cached_input": 0.075,
+        "output": 2.25,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking. Tier 0-256K."
+      },
+      "qwen3.6-flash": {
+        "vendor": "alibaba",
+        "input": 0.25,
+        "cached_input": 0.05,
+        "output": 1.5,
+        "long_context": {
+          "over_input_tokens": 256000,
+          "input": 1,
+          "cached_input": 0.2,
+          "output": 4
+        },
+        "aliases": [
+          "qwen3.6-flash-2026-04-16"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price."
+      },
+      "qwen3.6-plus": {
+        "vendor": "alibaba",
+        "input": 0.5,
+        "cached_input": 0.1,
+        "output": 3,
+        "long_context": {
+          "over_input_tokens": 256000,
+          "input": 2,
+          "cached_input": 0.4,
+          "output": 6
+        },
+        "aliases": [
+          "qwen3.6-plus-2026-04-02"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.7-flash": {
+        "vendor": "alibaba",
+        "input": 0.03,
+        "cached_input": 0.006,
+        "output": 0.13,
+        "long_context": {
+          "over_input_tokens": 32000,
+          "input": 0.1,
+          "cached_input": 0.02,
+          "output": 0.4
+        },
+        "aliases": [
+          "qwen3.7-flash-2026-07-15"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Three tiers: 0-32K 0.03/0.13; 32K-256K 0.1/0.4; 256K-1M 0.2/0.8 (only first higher tier in long_context)."
+      },
+      "qwen3.7-max": {
+        "vendor": "alibaba",
+        "input": 2.5,
+        "cached_input": 0.5,
+        "output": 7.5,
+        "aliases": [
+          "qwen3.7-max-2026-06-08",
+          "qwen3.7-max-2026-05-20"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.7-max-preview": {
+        "vendor": "alibaba",
+        "input": 2.5,
+        "cached_input": 0.5,
+        "output": 7.5,
+        "aliases": [
+          "qwen3.7-max-2026-05-17"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Thinking only."
+      },
+      "qwen3.7-plus": {
+        "vendor": "alibaba",
+        "input": 0.4,
+        "cached_input": 0.08,
+        "output": 1.6,
+        "long_context": {
+          "over_input_tokens": 256000,
+          "input": 1.2,
+          "cached_input": 0.24,
+          "output": 4.8
+        },
+        "aliases": [
+          "qwen3.7-plus-2026-05-26"
+        ],
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking. Page marks alias qwen3.7-plus as limited-time 20% promotion (no end date given); listed value is the page price. Tier 256K-1M."
+      },
+      "qwen3.8-2.4t-a95b": {
+        "vendor": "alibaba",
+        "input": 2,
+        "output": 6,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Open-weight model hosted; cached price not 20% (console only) -> null. Output same for thinking and non-thinking."
+      },
+      "qwen3.8-27b": {
+        "vendor": "alibaba",
+        "input": 0.5,
+        "cached_input": 0.1,
+        "output": 3,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "cached_input = 20% of input per implicit-cache rule (https://www.alibabacloud.com/help/en/model-studio/context-cache), not a listed price. Output same for thinking and non-thinking."
+      },
+      "qwen3.8-flash": {
+        "vendor": "alibaba",
+        "input": 0.15,
+        "output": 0.47,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Cached price not 20% for this model (console only) -> null."
+      },
+      "qwen3.8-max": {
+        "vendor": "alibaba",
+        "input": 2,
+        "output": 6,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Cached price not 20% for this model (console only) -> null. Output same for thinking and non-thinking. Singapore/intl list."
+      },
+      "qwen3.8-max-0902": {
+        "vendor": "alibaba",
+        "input": 2,
+        "output": 6,
+        "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+        "note": "Cached price not stated (console only) -> null. Output same for thinking and non-thinking."
+      },
+      "ernie-4.5-turbo": {
+        "vendor": "baidu",
+        "input": 0.11,
+        "cached_input": 0.03,
+        "output": 0.45,
+        "aliases": [
+          "ernie-4.5-turbo-32k",
+          "ernie-4.5-turbo-128k"
+        ],
+        "source": "https://intl.cloud.baidu.com/en/doc/qianfan/s/Jm8r1826a-intl-en"
+      },
+      "dola-seed-2-1-turbo": {
+        "vendor": "bytedance",
+        "input": 0.5,
+        "cached_input": 0.1,
+        "output": 2.5,
+        "aliases": [
+          "seed-2-1-turbo"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included. Tier [0,256K] flat. Flex/batch variants exist at 50%, not used."
+      },
+      "seed-1-6": {
+        "vendor": "bytedance",
+        "input": 0.25,
+        "cached_input": 0.05,
+        "output": 2,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 0.5,
+          "cached_input": 0.05,
+          "output": 4
+        },
+        "aliases": [
+          "seed-1-6-250915",
+          "seed-1.6"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included."
+      },
+      "seed-1-6-flash": {
+        "vendor": "bytedance",
+        "input": 0.075,
+        "cached_input": 0.015,
+        "output": 0.3,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 0.1,
+          "cached_input": 0.015,
+          "output": 0.8
+        },
+        "aliases": [
+          "seed-1-6-flash-250715",
+          "seed-1.6-flash"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included."
+      },
+      "seed-1-8": {
+        "vendor": "bytedance",
+        "input": 0.25,
+        "cached_input": 0.05,
+        "output": 2,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 0.5,
+          "cached_input": 0.05,
+          "output": 4
+        },
+        "aliases": [
+          "seed-1-8-251228"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included."
+      },
+      "seed-2-0-code-preview": {
+        "vendor": "bytedance",
+        "input": 0.5,
+        "cached_input": 0.1,
+        "output": 3,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 1,
+          "cached_input": 0.2,
+          "output": 6
+        },
+        "aliases": [
+          "seed-2-0-code-preview-260328",
+          "seed-2-0-code",
+          "seed-2.0-code"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included. Page lists only the preview ID."
+      },
+      "seed-2-0-lite": {
+        "vendor": "bytedance",
+        "input": 0.25,
+        "cached_input": 0.05,
+        "output": 2,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 0.5,
+          "cached_input": 0.1,
+          "output": 4
+        },
+        "aliases": [
+          "seed-2-0-lite-260428",
+          "seed-2-0-lite-260228"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included. Both snapshots same text price (260428 additionally lists audio input 3.75)."
+      },
+      "seed-2-0-mini": {
+        "vendor": "bytedance",
+        "input": 0.1,
+        "cached_input": 0.02,
+        "output": 0.4,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 0.2,
+          "cached_input": 0.04,
+          "output": 0.8
+        },
+        "aliases": [
+          "seed-2-0-mini-260428",
+          "seed-2-0-mini-260215"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included. Both snapshots same text price."
+      },
+      "seed-2-0-pro": {
+        "vendor": "bytedance",
+        "input": 0.5,
+        "cached_input": 0.1,
+        "output": 3,
+        "long_context": {
+          "over_input_tokens": 128000,
+          "input": 1,
+          "cached_input": 0.2,
+          "output": 6
+        },
+        "aliases": [
+          "seed-2-0-pro-260328"
+        ],
+        "source": "https://docs.byteplus.com/en/docs/modelark/model-pricing",
+        "note": "Text-input prices of Online inference (standard); cache-storage fee 0.0083 USD/M tok/hour not included."
+      },
+      "step-3.5-flash": {
+        "vendor": "stepfun",
+        "input": 0.1,
+        "cached_input": 0.02,
+        "output": 0.3,
+        "aliases": [
+          "step-3.5-flash-2603"
+        ],
+        "source": "https://platform.stepfun.ai/docs/en/pricing/details"
+      },
+      "step-3.7-flash": {
+        "vendor": "stepfun",
+        "input": 0.2,
+        "cached_input": 0.04,
+        "output": 1.15,
+        "source": "https://platform.stepfun.ai/docs/en/pricing/details"
+      },
+      "step-5-preview": {
+        "vendor": "stepfun",
+        "input": 1.0,
+        "cached_input": 0.1,
+        "output": 2.7,
+        "source": "https://platform.stepfun.ai/docs/en/pricing/details",
+        "note": "Cache-miss input includes cache write; output includes reasoning."
+      },
+      "hunyuan-translation": {
+        "vendor": "tencent",
+        "input": 0.2571,
+        "output": 0.7714,
+        "source": "https://www-sg.tencentcloud.com/document/product/1284/77186",
+        "note": "Translation model; flat rate."
+      },
+      "hy3": {
+        "vendor": "tencent",
+        "input": 0.132,
+        "cached_input": 0.033,
+        "output": 0.528,
+        "source": "https://www.tencentcloud.com/act/pro/tokenhub",
+        "note": "TokenHub Singapore region USD; page says 'Promo pricing synced with official docs', no end date or tiers shown."
+      },
+      "hy4-preview": {
+        "vendor": "tencent",
+        "input": 0.834,
+        "cached_input": 0.042,
+        "output": 2.501,
+        "source": "https://www.tencentcloud.com/act/pro/tokenhub",
+        "note": "TokenHub Singapore region USD; page says 'Promo pricing synced with official docs', no end date or tiers shown."
+      },
+      "grok-4.20": {
+        "vendor": "xAI",
+        "input": 1.25,
+        "cached_input": 0.2,
+        "output": 2.5,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 2.5,
+          "cached_input": 0.4,
+          "output": 5
+        },
+        "aliases": [
+          "grok-4.20-0309-reasoning",
+          "grok-4.20-0309-non-reasoning"
+        ],
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate. reasoning and non-reasoning same price"
+      },
+      "grok-4.20-multi-agent": {
+        "vendor": "xAI",
+        "input": 1.25,
+        "cached_input": 0.2,
+        "output": 2.5,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 2.5,
+          "cached_input": 0.4,
+          "output": 5
+        },
+        "aliases": [
+          "grok-4.20-multi-agent-0309"
+        ],
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate."
+      },
+      "grok-4.3": {
+        "vendor": "xAI",
+        "input": 1.25,
+        "cached_input": 0.2,
+        "output": 2.5,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 2.5,
+          "cached_input": 0.4,
+          "output": 5
+        },
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate."
+      },
+      "grok-4.5": {
+        "vendor": "xAI",
+        "input": 2.0,
+        "cached_input": 0.3,
+        "output": 6.0,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 4,
+          "cached_input": 0.6,
+          "output": 12
+        },
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate."
+      },
+      "grok-4.6": {
+        "vendor": "xAI",
+        "input": 2.0,
+        "cached_input": 0.5,
+        "output": 6.0,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 4,
+          "cached_input": 1,
+          "output": 12
+        },
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate."
+      },
+      "grok-4.7": {
+        "vendor": "xAI",
+        "input": 2.0,
+        "cached_input": 0.5,
+        "output": 6.0,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 4,
+          "cached_input": 1,
+          "output": 12
+        },
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate."
+      },
+      "grok-build-0.1": {
+        "vendor": "xAI",
+        "input": 1.0,
+        "cached_input": 0.2,
+        "output": 2.0,
+        "long_context": {
+          "over_input_tokens": 200000,
+          "input": 2,
+          "cached_input": 0.4,
+          "output": 4
+        },
+        "source": "https://docs.x.ai/docs/models",
+        "note": "Prompt >=200k tokens bills ALL tokens of the request at the higher rate."
+      },
+      "mimo-v2.6-flash": {
+        "vendor": "xiaomi",
+        "input": 0.14,
+        "cached_input": 0.0028,
+        "output": 0.28,
+        "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+        "note": "Overseas USD table, real-time inference; cache write free for limited time."
+      },
+      "mimo-v2.6-pro": {
+        "vendor": "xiaomi",
+        "input": 0.435,
+        "cached_input": 0.0036,
+        "output": 0.87,
+        "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+        "note": "Overseas USD table, real-time inference; cache write free for limited time."
+      },
+      "mimo-v2.6-pro-ultraspeed": {
+        "vendor": "xiaomi",
+        "input": 4.35,
+        "cached_input": 0.036,
+        "output": 8.7,
+        "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+        "note": "Overseas USD table, real-time inference; cache write free for limited time."
+      }
+    },
+    "unpriced": {
+      "Meta: muse-wonder, muse-glimmer-30b, muse-spark-1.2, muse-spark-1.2-contributor, muse-spark-1.1": "no official price on dev.meta.ai/models/muse-spark/ (only 1.3 listed); aggregators not used",
+      "Meta: llama-4-maverick, llama-4-scout, llama-3.3-70b-instruct, llama-3.1-70b-instruct, llama-3.1-8b-instruct, llama-3.2-1b-instruct, llama-3.2-3b-instruct, llama-guard-4-12b": "open-weight Llama; no Meta first-party price page found (only third-party hosts)",
+      "Cohere: command-a-plus-05-2026, command-a-03-2025, command-r7b-12-2024, command-r-08-2024, command-a-reasoning-08-2025, command-a-vision-07-2025, command-a-translate-08-2025": "cohere.com/pricing and docs.cohere.com show no price for this model (only legacy models listed); aggregators disagree (e.g. command-a-plus 2.50/10 vs 0.30/1.50) so not used",
+      "Mistral: devstral-2512, voxtral-small-24b-2507, mistral-medium-3.1, mistral-small-3.2-24b-instruct, mistral-medium-3, mistral-small-3.1-24b-instruct, mistral-saba, mistral-small-24b-instruct-2501, mistral-large-2407, mistral-nemo, mixtral-8x22b-instruct, mistral-large": "not shown on docs.mistral.ai/inference/pricing (retired/deprecated or truncated page)",
+      "nvidia: switchyard, nemotron-3.5-lightning, nemotron-3.5-content-safety, nemotron-3-ultra-550b-a55b, nemotron-3-super-120b-a12b, nemotron-3-nano-30b-a3b": "no official NVIDIA-hosted API price found (build.nvidia.com pages list none)",
+      "Perplexity: sonar-pro-search": "pricing page says Pro Search is not modeled and gives no price",
+      "Amazon: nova-2-pro": "Preview only; price row not extracted/ambiguous",
+      "Amazon: nova-2-omni": "Preview only; multimodal price table, not extracted",
+      "DeepSeek: deepseek-chat": "Retired/mapped to Flash per changelog (scheduled discontinuation 2026-07-24); no price on page",
+      "DeepSeek: deepseek-v3.2, deepseek-r1": "No longer on pricing page",
+      "Moonshot: kimi-k2.5": "Not on kimi.ai pricing page",
+      "Moonshot: kimi-k2-thinking, kimi-k2-0905, kimi-k2": "Not on pricing page",
+      "Z.ai: glm-5.3-prime, glm-5-turbo": "Not on docs.z.ai pricing page",
+      "Z.ai: glm-5v-turbo": "Not on docs.z.ai pricing page (vision)",
+      "Z.ai: glm-4.6v, glm-4.5v": "Not on page",
+      "MiniMax: minimax-m2-her, minimax-m1, minimax-01": "Not on page",
+      "alibaba: qwen3.8-max-prime": "Not on Alibaba intl pricing page.",
+      "alibaba: qwen3.8-omni-flash": "Omni (multimodal) model; excluded from text list.",
+      "alibaba: qwen3-coder-plus / qwen3-coder-next / qwen3-max": "Not found on the intl pricing page text read (only qwen3-coder-flash listed); first ~100K chars read plus remainder only role-play models.",
+      "alibaba: qwen3-coder, qwen3-vl-*, qwen3-next-*, qwen3-235b-*, qwen3-30b/14b/32b, qwen2.5-*": "Older open models / VL not in the section read; not verified.",
+      "alibaba: qwen3.8-max cached price": "Cache hit price for qwen3.8-max/-0902/-flash/-2.4t-a95b stated as 'see console'; left null.",
+      "bytedance: seed-2.0-code (GA)": "Only seed-2-0-code-preview-260328 is listed.",
+      "tencent: hy3-preview, hunyuan-a13b-instruct, hy-mt2-*": "Not listed on TokenHub page; no official USD page found.",
+      "baidu: ernie-4.5-turbo-vl": "Vision model, skipped.",
+      "stepfun: step-3.7 other / step-3 / step-r1 etc.": "Only 4 models listed on official page.",
+      "Baidu: ernie-5.1, ernie-5.0": "The per-length tiers of the Baidu Qianfan page could not be told apart reliably (base tier vs. the 32k-128k tier), so no price is recorded.",
+      "Xiaomi: mimo-v2.5-pro, mimo-v2.5": "The page shares merged cells with the v2.6 models and both retire on 2026-10-21; no price is recorded."
+    }
   }
 }
