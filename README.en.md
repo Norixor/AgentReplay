@@ -263,7 +263,7 @@ python3 scripts/check.py
 `scripts/check.py` runs these checks (it needs only Python; the JavaScript parts run when `node` is installed):
 
 1. Compile every `.py` file; run `node --check` on every `.js` file.
-2. Unit tests: time segmentation, terminal text, time analysis, the dialog model and the route map (`scripts/test_*.mjs`), plus pricing (`scripts/test_prices.py`) and the source registry (`scripts/test_sources.py`: a fake source registered only in the test shows up in the data directory options, the session list, CLI resolution and the server routes without changes to the dispatching code).
+2. Unit tests: time segmentation, terminal text, time analysis, the dialog model, the route map and the agent graph layout (`scripts/test_*.mjs`), plus pricing (`scripts/test_prices.py`) and the source registry (`scripts/test_sources.py`: a fake source registered only in the test shows up in the data directory options, the session list, CLI resolution and the server routes without changes to the dispatching code).
 3. Generate the demo data, render the finished demo sessions and assert their agent and step counts; check the amounts against a hand calculation.
 4. Render every view of the demo pages against a stub DOM.
 5. Start the server on a free port and check `/`, `/api/sessions`, the live API, the incremental steps API, and that the server restarts itself after a source change. The server is stopped and the temporary data removed afterwards.

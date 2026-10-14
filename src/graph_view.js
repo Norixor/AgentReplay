@@ -7,7 +7,7 @@
 const GR_MINK = 0.3, GR_MAXK = 2, GR_TWEEN = 300, GR_DRAW = 500, GR_POS_KEY = 'agent-replay.graph.pos.';
 const GR = {
   host: null, key: '', d: null, skew: 0, active: false, primed: false, hidden: false, ready: false,
-  nodes: new Map(), edges: new Map(), retired: new Set(), names: {},
+  nodes: new Map(), edges: new Map(), retired: new Set(), mem: {}, names: {},
   k: 1, vx: 24, vy: 24, auto: true, vt: null,
   sel: null, pos: {}, raf: 0, timer: 0, ptrs: new Map(), drag: null, pinch: null, lastTap: null,
   stats: {frames: 0, last: 0, max: 0, sum: 0, samples: []}
@@ -34,7 +34,7 @@ function grSavePos() {
 
 /* ---------------------------------------------------------------- lifecycle */
 function grInit(host, key) {
-  if (GR.key !== key) GR.retired = new Set();
+  if (GR.key !== key) { GR.retired = new Set(); GR.mem = {}; }
   Object.assign(GR, {host, key, d: null, primed: false, hidden: document.hidden, nodes: new Map(), edges: new Map(), sel: null, auto: true, vt: null,
                      k: 1, vx: 24, vy: 24, raf: 0, ptrs: new Map(), drag: null, pinch: null, ready: true});
   GRFX.dots = [];
@@ -62,7 +62,11 @@ function grInit(host, key) {
   grBindInput();
   grBindMap();
   grBindTip();
-  GR.onResize = () => { if (GR.active && GR.auto) grFit(false); else grMiniDraw(); };
+  /* the grid's column count follows the viewport shape, so a resize re-lays out (debounced) before fitting */
+  GR.onResize = () => {
+    clearTimeout(GR.rsz);
+    GR.rsz = setTimeout(() => { if (!GR.active) return; grRelayout(false); if (GR.auto) grFit(false); }, 120);
+  };
   window.addEventListener('resize', GR.onResize);
   GR.onVis = () => {
     GR.hidden = document.hidden;
@@ -77,6 +81,7 @@ function grInit(host, key) {
 
 function grDestroy() {
   clearInterval(GR.timer);
+  clearTimeout(GR.rsz);
   cancelAnimationFrame(GR.raf);
   GR.raf = 0;
   if (GR.onVis) document.removeEventListener('visibilitychange', GR.onVis);
@@ -129,8 +134,11 @@ function grRelayout(fromData) {
   const cfg = d.cfg || {};
   const fadeMs = (cfg.graphFadeSec || 60) * 1000;
   const now = Date.now() + GR.skew;
-  const b = grBuild(d, {now, fadeMs, maxNodes: cfg.graphMaxNodes || 40, retired: GR.retired});
+  const vw = GR.vp ? GR.vp.clientWidth : 0, vh = GR.vp ? GR.vp.clientHeight : 0;
+  const b = grBuild(d, {now, fadeMs, maxNodes: cfg.graphMaxNodes || 40, retired: GR.retired, mem: GR.mem, vw: vw || undefined, vh: vh || undefined});
   const anim = fromData && GR.primed && !grReduced();
+  const tween = GR.primed && !grReduced();   // folds also happen on the 1 s timer: let those moves glide too
+  let movedAny = false;
   const t = performance.now();
   const age = LV.fetchedAt ? Date.now() - LV.fetchedAt : 0;
   const live = new Set();
@@ -148,8 +156,9 @@ function grRelayout(fromData) {
       if (anim && n.kind === 'agent') grFxPop(o);
     } else if (o.tx !== tgt.x || o.ty !== tgt.y) {
       o.fx = o.x; o.fy = o.y; o.tx = tgt.x; o.ty = tgt.y;
-      o.t0 = anim ? t : null;
-      if (!anim) { o.x = o.tx; o.y = o.ty; o.el.style.transform = 'translate(' + o.x + 'px,' + o.y + 'px)'; }
+      movedAny = true;
+      o.t0 = tween ? t : null;
+      if (!tween) { o.x = o.tx; o.y = o.ty; o.el.style.transform = 'translate(' + o.x + 'px,' + o.y + 'px)'; }
     }
     o.n = n;
     if (fromData || n.kind === 'sum' || n.id === 'main' || (o.el._sig && !o.el._sig.state)) grUpdateNode(o.el, n, age);
@@ -188,7 +197,8 @@ function grRelayout(fromData) {
     const st = child && child.n.card ? child.n.card.state : 'sum';
     o.g.setAttribute('class', 'gr-edge st-' + st + (e.to === GR_SUM ? ' to-sum' : ''));
     const cc = child && child.n.card;
-    o.label.hidden = !cc;
+    /* a link into a later grid column runs behind the cards to its left; its midpoint label would sit under them */
+    o.label.hidden = !cc || !!(child && child.n.gc);
     if (cc) {
       const txt = fmtClock(cc.start || 0) + ' · ' + clip(cc.desc, 16);
       if (o.label._t !== txt) { o.label._t = txt; o.label.textContent = txt; }
@@ -210,7 +220,8 @@ function grRelayout(fromData) {
   if (GR.sel && !live.has(GR.sel)) { GR.sel = null; grDetail(); }
   if (fromData) returned.forEach(o => grFxReturn(o));
   if (fromData) GR.primed = true;
-  if (GR.auto && fromData) grFit(anim);
+  if (GR.auto && (fromData || movedAny || live.size !== GR.lastLive)) grFit(fromData ? anim : tween);
+  GR.lastLive = live.size;
   grMiniDraw();
   grKick();
 }
@@ -246,7 +257,9 @@ function grFrame() {
     e.dirty = false;
     const a = GR.nodes.get(e.from), b = GR.nodes.get(e.to);
     if (!a || !b) return;
-    e.curve = grCurve(a.x + a.n.w, a.y + GR_SLOT_Y, b.x, b.y + GR_SLOT_Y);
+    /* into a later grid column the link bends late with a short end tangent, so it reaches the input slot at an angle
+       out of the column gap instead of running level from the neighbour's output slot (which would read as a chain) */
+    e.curve = grCurve(a.x + a.n.w, a.y + GR_SLOT_Y, b.x, b.y + GR_SLOT_Y, b.n.gc ? GR_CX * 0.6 : null);
     e.line.setAttribute('d', e.curve.d);
     e.flow.setAttribute('d', e.curve.d);
     const mid = grPoint(e.curve, 0.5);
@@ -308,12 +321,12 @@ function grGoto(k, x, y, animate) {
 function grFit(animate) {
   const b = grBounds();
   if (!b || !GR.vp) return;
-  const vw = GR.vp.clientWidth, vh = GR.vp.clientHeight, pad = 28;
+  const vw = GR.vp.clientWidth, vh = GR.vp.clientHeight, pad = GR_FIT_PAD, padT = GR_FIT_PADT;   // padT keeps the status overlay off the top row
   const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
-  const k = grClamp(Math.min((vw - 2 * pad) / bw, (vh - 2 * pad) / bh), GR_MINK, 1.2);
+  const k = grClamp(Math.min((vw - 2 * pad) / bw, (vh - pad - padT) / bh), GR_MINK, GR_FIT_MAX);
   /* when even the smallest zoom cannot show everything, start from the top-left so the main agent stays in view */
   const x = bw * k > vw - 2 * pad ? pad - b.x0 * k : (vw - bw * k) / 2 - b.x0 * k;
-  const y = bh * k > vh - 2 * pad ? pad - b.y0 * k : (vh - bh * k) / 2 - b.y0 * k;
+  const y = bh * k > vh - pad - padT ? padT - b.y0 * k : padT + (vh - pad - padT - bh * k) / 2 - b.y0 * k;
   grGoto(k, x, y, animate);
 }
 

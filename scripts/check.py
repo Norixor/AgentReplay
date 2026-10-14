@@ -92,6 +92,11 @@ def check_js():
         r = subprocess.run([node, t], capture_output=True, text=True, timeout=180)
         tail = (r.stdout + r.stderr).strip().splitlines()
         report(r.returncode == 0, "route map unit test: %s" % (tail[-1] if tail else ("passed" if r.returncode == 0 else "failed")))
+    t = os.path.join(ROOT, "scripts", "test_graph.mjs")  # live flow graph layout (graph_layout.js)
+    if os.path.exists(t):
+        r = subprocess.run([node, t], capture_output=True, text=True, timeout=120)
+        tail = (r.stdout + r.stderr).strip().splitlines()
+        report(r.returncode == 0, "flow graph layout unit test: %s" % (tail[-1] if tail else ("passed" if r.returncode == 0 else "failed")))
 
 
 def write_page(tmp, name, html):

@@ -261,7 +261,7 @@ python3 scripts/check.py
 `scripts/check.py` 依次做这些检查（只依赖 Python；装了 `node` 才做 JavaScript 部分）：
 
 1. 编译所有 `.py` 文件；对所有 `.js` 文件做 `node --check`。
-2. 运行单元测试：时间切分、终端文本、耗时分析、弹窗模型、路线图（`scripts/test_*.mjs`），以及计价（`scripts/test_prices.py`）和来源注册表（`scripts/test_sources.py`：只在测试里注册一个假来源，确认它不改分派代码就出现在数据目录参数、会话列表、命令行解析和服务路由里）。
+2. 运行单元测试：时间切分、终端文本、耗时分析、弹窗模型、路线图、代理图布局（`scripts/test_*.mjs`），以及计价（`scripts/test_prices.py`）和来源注册表（`scripts/test_sources.py`：只在测试里注册一个假来源，确认它不改分派代码就出现在数据目录参数、会话列表、命令行解析和服务路由里）。
 3. 生成演示数据，渲染其中已结束的会话并断言代理数和步数；对照手算结果核对金额。
 4. 用假 DOM 渲染演示页面的每个视图。
 5. 把服务起在空闲端口，检查 `/`、`/api/sessions`、实时接口、增量步骤接口，以及源码改动后服务能自行重启。结束后关闭服务并清理临时数据。
