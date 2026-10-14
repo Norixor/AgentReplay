@@ -98,6 +98,11 @@ def ms_of(v):
         return None
 
 
+def stamp_of(created, h):
+    """Time of one message (ms): its own createdAt, else the header's startedAtMs / createdAt; None when none is recorded."""
+    return next((t for t in (ms_of(created), ms_of(h.get("startedAtMs")), ms_of(h.get("createdAt"))) if t is not None), None)
+
+
 def _json(raw):
     try:
         return json.loads(raw)

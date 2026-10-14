@@ -21,6 +21,22 @@ _NOISE_PARAMS = {"parsingResult", "lineRanges", "gracefullyHandleRecoverableErro
                  "shouldEditFileFailForLargeFiles", "fileIsAllowedToBeReadEntirely", "maxLines", "maxChars", "minLines",
                  "allowMultipleMatches", "requireUserApproval", "options"}
 _OK, _FAIL = {"completed", "success"}, {"error", "cancelled", "canceled", "failed"}
+SAME_RESPONSE_GAP_MS = 800
+
+
+def is_finished(tool):
+    """True once a tool message has its outcome (completed, error or cancelled); anything else is a call still running."""
+    status = str(tool.get("status") or "").lower()
+    return status in _OK or status in _FAIL
+
+
+def same_response(mcid, open_mcid, ts, call_end):
+    """Does a tool message that starts at ts belong to the response whose calls are already open? Compared by the shared
+    response id when both sides have one, else by whether it starts within SAME_RESPONSE_GAP_MS of the previous call's end
+    (parallel or back-to-back calls; a new model call needs a round trip first)."""
+    if mcid and open_mcid:
+        return mcid == open_mcid
+    return ts - (call_end or ts) < SAME_RESPONSE_GAP_MS
 
 
 def obj(raw):
@@ -198,7 +214,7 @@ def make_call(b, ts, end, ctx, linked):
     p, raw = args_of(t)
     cat = category(name, dict(raw, **p))
     status = str(t.get("status") or "").lower()
-    done = status in _OK or status in _FAIL
+    done = is_finished(t)
     st = ("err" if _failed(name, t) else "ok") if done else "pend"
     text = result_text(name, t)
     if status in ("cancelled", "canceled") and not text:

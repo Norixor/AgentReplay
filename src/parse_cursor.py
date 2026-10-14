@@ -38,10 +38,8 @@ price (cost None, "unpriced"): the page shows "未定价" instead of a made-up $
 import prices
 import source_cursor
 from common import Progress, cut, finish_agent, link_agents, totals
-from cursor_calls import AGENT_TOOLS, agent_id, agent_kind, args_of, make_call, response_key
-from cursor_scan import load_session, ms_of, project_dir, snapshot, split, stat
-
-SAME_RESPONSE_GAP_MS = 800
+from cursor_calls import AGENT_TOOLS, agent_id, agent_kind, args_of, make_call, response_key, same_response
+from cursor_scan import load_session, ms_of, project_dir, snapshot, split, stamp_of, stat
 
 
 def model_of(sess):
@@ -63,8 +61,8 @@ def stamps_of(msgs):
     leading run without any time takes the first known one."""
     out, last = [], None
     for m in msgs:
-        h = m["h"]
-        ts = next((t for t in (ms_of(m.get("createdAt")), ms_of(h.get("startedAtMs")), ms_of(h.get("createdAt"))) if t is not None), last)
+        ts = stamp_of(m.get("createdAt"), m["h"])
+        ts = last if ts is None else ts
         out.append(ts)
         last = ts if ts is not None else last
     first = next((t for t in out if t is not None), 0)
@@ -170,8 +168,7 @@ def build_agent(aid, sess, msgs, ctx, is_root, meta, dispatch):
             continue
         mcid = response_key(tool)
         if p["calls"]:
-            same = mcid == p["mcid"] if (mcid and p["mcid"]) else (ts - (p["call_end"] or ts) < SAME_RESPONSE_GAP_MS)
-            if not same:
+            if not same_response(mcid, p["mcid"], ts, p["call_end"]):
                 flush()
                 p = st["pend"]
         end = ms_of(h.get("completedAtMs"))

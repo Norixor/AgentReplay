@@ -2,8 +2,8 @@
 opened strictly read-only (see cursor_scan.py for what is read and what is deliberately never touched).
 
 Every top-level, time-stamped chat is one virtual path "<db>#<composerId>"; sub-agent chats are folded into the row of their
-parent chat and into its tree. There is no live view (the database is the editor's working store, polling it is left out:
-live_supported = False).
+parent chat and into its tree. The live view polls the database read-only (live_cursor.py, cursor_tail.py): a cheap file
+fingerprint decides whether anything changed, and only the new or still-running messages of the followed chats are read.
 
 Cursor does not record token usage locally, so nothing here has a price: every step is "unpriced" (cost None) with zero tokens,
 and the page shows that instead of a $0.00.
@@ -29,7 +29,8 @@ class CursorSource(Source):
     dir_flag = "--cursor-dir"
     dir_envs = ("AGENT_REPLAY_CURSOR_DIR",)
     dir_help = "Cursor 数据目录（含 User/globalStorage/state.vscdb），默认 macOS ~/Library/Application Support/Cursor、Linux ~/.config/Cursor、Windows %%APPDATA%%\\Cursor"
-    live_supported = False
+    ctx_limit_key = "ctxLimitCursor"
+    ctx_limit_default = 256000  # the context limit Cursor reports for its default models (composerData.contextTokenLimit)
     page = {"fams": False, "noUsage": True, "notes": {
         "why": "思考摘要来自 thinking（Cursor 不一定保存文字）；工具调用前的说明取自同一次响应里的文字",
         "mainSteps": "一次模型响应算一步（文字、思考、每个工具调用在记录里是分开的消息，按同一次响应的调用 id 归并）；Cursor 不在本地记录 token 用量，所以没有金额",
@@ -67,6 +68,10 @@ class CursorSource(Source):
     def parse(self, root_id, tree, name, out_chars, inp_chars, progress=None, cache=None):
         from parse_cursor import parse_cursor
         return parse_cursor(root_id, tree, name, out_chars, inp_chars, progress)
+
+    def live(self, lv):
+        import live_cursor
+        return live_cursor.CursorLive(lv)
 
     def price_step(self, model, usage):
         return price_step(model, usage)

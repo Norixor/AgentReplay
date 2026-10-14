@@ -2,6 +2,9 @@
 """Tests of the Cursor source (src/source_cursor.py, cursor_scan.py, cursor_calls.py, parse_cursor.py) on small synthetic
 SQLite databases created here (WAL mode, like Cursor's own); no real session data is read or stored.
 
+The live view has its own group (live_cases): first build with the older part only counted, pending calls that finish in place,
+a message written twice, sub-agent chats followed and handed back, zero tokens / amounts, secrets, read-only and cheap polling.
+
 Covers: virtual session paths and their stat() following new messages (also from sub-agent chats), which chats are listed
 (placeholders, sub-agents and chats without per-message times are not), the session tree, the page model (turns, steps merged
 from separate messages, calls with their times, failed / cancelled / refused calls, sub-agent link and report), time estimates,
@@ -178,7 +181,7 @@ def cases():
         src = sources.get("cursor")
 
         # --- nothing there / not a database / no table / no rows
-        case("registered without a live view", src.live_supported is False and "cursor" in sources.ids())
+        case("registered with a live view and no token / amount fields", src.live_supported is True and src.page["noUsage"] is True and "cursor" in sources.ids())
         case("missing data directory -> no files", cursor_scan.files(os.path.join(tmp, "absent")) == [])
         os.makedirs(os.path.dirname(dbfile))
         with open(dbfile, "wb") as f:
@@ -345,8 +348,185 @@ def cases():
     return out
 
 
+def live_cases():
+    """The live feed (live_cursor.py / cursor_tail.py) on a growing synthetic database, driven through live.Live."""
+    import live as livemod
+    out = []
+
+    def case(name, ok):
+        out.append(("live: " + name, bool(ok)))
+
+    tmp = tempfile.mkdtemp(prefix="agent-replay-cursor-live-")
+    orig_connect = cursor_scan.connect
+    db = None
+    try:
+        root = os.path.join(tmp, "data")
+        dbfile = cursor_scan.db_file(root)
+        db = Db(dbfile)
+        src = sources.get("cursor")
+        M, S, X, Z, Q = "live-M", "live-S", "live-X", "live-Z", "live-Q"
+        W = T0 + 7_000_000          # every build below happens within a minute of W; the window is the hour before
+        cutoff = W + 20_000 - livemod.WINDOW_MS
+
+        def live_of(sid):
+            row = {"key": "cursor:" + sid, "tool": "cursor", "id": sid, "path": cursor_scan.vpath(dbfile, sid), "start": T0, "cwd": "/work/live"}
+            return livemod.Live(row, {})
+
+        def rewrite(sid, bid, t, tl, done=None):
+            """The editor rewrites a message in place and stamps its end into the header."""
+            db.put("bubbleId:%s:%s" % (sid, bid), {"_v": 3, "type": 2, "bubbleId": bid, "text": "", "createdAt": iso(t), "toolFormerData": tl})
+            for h in db.headers[sid]:
+                if h["bubbleId"] == bid and done is not None:
+                    h["completedAtMs"] = done
+            db.put("composerData:" + sid, db._composer[sid])
+
+        db.composer(M, name="Live chat", ctx=7000)
+        db.bubble(M, "m1", 1, T0 + 1000, "old question")
+        db.bubble(M, "m2", 2, T0 + 2000, think="old", tdur=100)
+        db.bubble(M, "m3", 2, T0 + 2500, tool=tool("read_file", "completed", {"relativeWorkspacePath": "o.py"}, result={"contents": "x"}, call=("o1", 0)), done=T0 + 2600)
+        db.bubble(M, "m4", 1, W, "work now")
+        db.bubble(M, "m5", 2, W + 1000, think="plan", tdur=500)
+        db.bubble(M, "m6", 2, W + 1500, tool=tool("read_file", "completed", {"relativeWorkspacePath": "a.py"}, result={"contents": "print(1)"}, call=("r1", 0)), done=W + 1800)
+        run_args = {"command": "make test", "commandDescription": "run the build"}
+        db.bubble(M, "m7", 2, W + 1900, tool=tool("run_terminal_command_v2", "running", run_args, call=("r1", 1)))
+
+        lv = live_of(M)
+        lv.refresh(W + 3000)
+        snap = lv.snapshot(W + 3000)
+        main = lv.agents["main"]
+        card = snap["cards"][0]
+        case("first build reads the window: one step (thinking + two calls of one response); older messages are only counted",
+             main.steps == 1 and main.prefix_steps >= 1 and main.approx and card["stepsApprox"] is True and len(main.step_ts) == 1)
+        case("a call without an outcome is pending: the card shows it executing, with its description",
+             list(main.pending) == ["m7"] and card["state"] == "exec" and card["detail"]["tool"] == "run_terminal_command_v2" and card["detail"]["desc"] == "run the build")
+        case("model, effort, context size and Cursor's own limit", card["model"] == "model-x" and card["effort"] == "medium" and card["ctx"] == 7000 and card["ctxLimit"] == 256000)
+        case("user message becomes an event", any(e["k"] == "user" and e["text"] == "work now" for e in snap["events"]))
+        case("no tokens and no amounts anywhere in the snapshot, nothing listed as unpriced",
+             not any(card["tok"].values()) and card["tokTotal"] == 0 and card["costWin"] == 0 and card["cost15"] == 0 and snap["rate"]["c60"] == 0
+             and snap["rate"]["t60"] == 0 and snap["unpriced"] == [])
+
+        rewrite(M, "m7", W + 1900, tool("run_terminal_command_v2", "completed", run_args, result={"output": "ok", "exitCodeV2": 0}, call=("r1", 1)), done=W + 4000)
+        lv.refresh(W + 5000)
+        card = lv.snapshot(W + 5000)["cards"][0]
+        case("the finished message resolves the pending call in place, without a second step",
+             not main.pending and main.steps == 1 and card["state"] == "think" and card["recent"][0]["dur"] == 2100 and card["recent"][0]["st"] == "ok")
+        row = db.con.execute("SELECT value FROM cursorDiskKV WHERE key = ?", ("bubbleId:%s:m7" % M,)).fetchone()[0]
+        db.put("bubbleId:%s:m7" % M, row)  # the same message written again
+        db.put("composerData:" + M, db._composer[M])
+        lv.refresh(W + 5500)
+        case("a message written twice is not counted twice", main.steps == 1 and len(main.recent) == 1)
+
+        db.bubble(M, "m8", 2, W + 6000, "next, a reply")
+        lv.refresh(W + 6500)
+        case("a reply after the calls is the next response: a second step", main.steps == 2 and main.recent[-1]["tool"] == "回复")
+
+        # a sub-agent chat appears (and one that is far too old)
+        db.composer(M, name="Live chat", ctx=7000, subs=[S, X])
+        db.composer(S, name="scan", status="none", created=W + 7000, parent=M, model="model-sub", subtitle="sub summary")
+        db.bubble(S, "s1", 1, W + 7100, "look around")
+        db.bubble(S, "s2", 2, W + 7500, tool=tool("grep_search", "running", {"patternInfo": {"pattern": "needle"}}, call=("q1", 0)))
+        task_args = {"description": "scan", "prompt": "look around", "subagentType": "explore", "model": "m"}
+        db.bubble(M, "m9", 2, W + 7000, tool=tool("task_v2", "running", task_args, call=("r2", 2), extra={"subagentComposerId": S}))
+        db.composer(X, name="old sub", status="none", created=T0 + 10, parent=M)
+        db.bubble(X, "x1", 1, T0 + 100, "ancient")
+        db.bubble(X, "x2", 2, T0 + 200, "ancient reply")
+        lv.refresh(W + 8000)
+        snap = lv.snapshot(W + 8000)
+        sub = lv.agents.get(S)
+        by = {c["id"]: c for c in snap["cards"]}
+        case("a sub-agent chat named by the chat is followed under its parent, labelled like the replay page",
+             sub is not None and by[S]["parent"] == "main" and by[S]["desc"] == "explore · scan" and by[S]["depth"] == 1 and by[S]["model"] == "model-sub")
+        case("the parent waits on the task call, the sub-agent executes its own pending call",
+             by["main"]["state"] == "waiting" and by[S]["state"] == "exec" and by[S]["detail"]["tool"] == "grep_search" and snap["subs"][S]["state"] == "exec")
+        case("dispatch event for the task call", any(e["k"] == "dispatch" and "scan" in e["text"] for e in snap["events"]))
+        case("a chat with only old messages is not followed and is counted as unreturned", X not in lv.agents and snap["staleSubs"] == 1)
+
+        rewrite(S, "s2", W + 7500, tool("grep_search", "completed", {"patternInfo": {"pattern": "needle"}}, result={"internal": {"results": []}}, call=("q1", 0)), done=W + 7800)
+        db.bubble(S, "s3", 2, W + 9000, "found it", turn_ms=2000)
+        rewrite(M, "m9", W + 7000, tool("task_v2", "completed", task_args, call=("r2", 2), extra={"subagentComposerId": S, "terminationReason": "completed"}), done=W + 9500)
+        lv.refresh(W + 10000)
+        snap = lv.snapshot(W + 10000)
+        case("the completed task call hands the sub-agent back: done, handback event, listed as returned",
+             sub.done and sub.done_ts == W + 9500 and any(e["k"] == "handback" for e in snap["events"]) and [c["id"] for c in snap["returned"]] == [S] and not main.pending)
+
+        # the same reading as the replay page for what lies inside the window
+        data = src.parse(M, src.tree({}, M, cursor_scan.vpath(dbfile, M)), "x", 600, 4000)
+        pa = {a["id"]: a for a in data["agents"]}
+        inwin = [s for t in pa["main"]["turns"] for s in t["steps"] if s["ts"] >= cutoff]
+        case("step counts in the window equal the replay page's, main and sub-agent", main.steps == len(inwin) == 2 and sub.steps == pa[S]["nsteps"] == 2)
+        case("tokens and amounts equal the replay page's: none", not any(pa["main"]["tok"].values()) and not any(main.tok.values()) and pa["main"]["cost"] == 0)
+
+        # the run was stopped: a call that never got its outcome is dropped
+        db.composer(Z, name="stopped", status="aborted")
+        db.bubble(Z, "z1", 1, W - 710_000, "start")
+        db.bubble(Z, "z2", 2, W - 700_000, tool=tool("run_terminal_command_v2", "running", {"command": "make"}, call=("z", 0)))
+        db.bubble(Z, "z3", 2, W + 100, "gave up")
+        lz = live_of(Z)
+        lz.refresh(W + 20_000)
+        case("an aborted chat does not keep a long-dead call pending", not lz.agents["main"].pending and lz.snapshot(W + 20_000)["cards"][0]["state"] != "exec")
+
+        # failures
+        db.composer(Q, name="fails")
+        db.bubble(Q, "q1", 1, W, "go")
+        db.bubble(Q, "q2", 2, W + 100, tool=tool("search_replace", "error", {"relativeWorkspacePath": "a.py"}, error={"modelVisibleErrorMessage": "no match"}, call=("f", 0)))
+        lq = live_of(Q)
+        lq.refresh(W + 5000)
+        case("a failed call is a fail event and counts in the streak", lq.agents["main"].fail_streak == 1 and any(e["k"] == "fail" for e in lq.snapshot(W + 5000)["events"]))
+
+        # a call's outcome and the final reply of the turn show up in one poll: the reply decides, the chat is idle
+        R = "live-R"
+        db.composer(R, name="finishing")
+        db.bubble(R, "r1", 1, W, "go")
+        db.bubble(R, "r2", 2, W + 100, tool=tool("run_terminal_command_v2", "running", {"command": "make"}, call=("w", 0)))
+        lr = live_of(R)
+        lr.refresh(W + 1000)
+        was_exec = lr.snapshot(W + 1000)["cards"][0]["state"] == "exec"
+        rewrite(R, "r2", W + 100, tool("run_terminal_command_v2", "completed", {"command": "make"}, result={"output": "", "exitCodeV2": 0}, call=("w", 0)), done=W + 900)
+        db.bubble(R, "r3", 2, W + 1200, "all done", turn_ms=1300)
+        lr.refresh(W + 2000)
+        case("a late outcome does not override the final reply of the turn", was_exec and not lr.agents["main"].pending and lr.snapshot(W + 2000)["cards"][0]["state"] == "idle")
+
+        # polling cost and safety
+        stmts, conns, reads = [], [0], set()
+
+        def spy(path):
+            conns[0] += 1
+            con = orig_connect(path)
+            con.set_trace_callback(stmts.append)
+
+            def auth(action, a1, a2, dbn, src_):
+                if action == sqlite3.SQLITE_READ:
+                    reads.add(a1)
+                return sqlite3.SQLITE_OK
+            con.set_authorizer(auth)
+            return con
+        lv.refresh(W + 10_500)  # catch up with the writes of the other chats above
+        cursor_scan.connect = spy
+        sha0 = (sha(dbfile), sha(dbfile + "-wal"))
+        lv.refresh(W + 11_000)
+        sha1 = (sha(dbfile), sha(dbfile + "-wal"))
+        case("nothing changed in the database -> no connection is opened", conns[0] == 0)
+        db.composer("other-chat", name="other")
+        db.bubble("other-chat", "o1", 1, W + 11_100, "unrelated")
+        sha2 = (sha(dbfile), sha(dbfile + "-wal"))
+        lv.refresh(W + 12_000)
+        sha3 = (sha(dbfile), sha(dbfile + "-wal"))
+        cursor_scan.connect = orig_connect
+        case("an unrelated write costs one short connection per followed chat and no range scan",
+             1 <= conns[0] <= 2 and stmts and not any("key >=" in s or "LIKE" in s.upper() for s in stmts))
+        case("only cursorDiskKV is read, and polling never changes the files", reads == {"cursorDiskKV"} and sha0 == sha1 and sha2 == sha3)
+        blob = json.dumps(lv.snapshot(W + 12_000), ensure_ascii=False) + json.dumps(lz.snapshot(W + 20_000), ensure_ascii=False)
+        case("encryption keys and signatures never reach a snapshot", not any(x in blob for x in SECRETS))
+    finally:
+        cursor_scan.connect = orig_connect
+        if db is not None:
+            db.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+    return out
+
+
 def run():
-    res = cases()
+    res = cases() + live_cases()
     return res, [n for n, ok in res if not ok]
 
 
