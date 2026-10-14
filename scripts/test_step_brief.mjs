@@ -108,4 +108,14 @@ c.st = 'ok'; c.res = 'Tests  3 passed (3)';
 assert.equal(brief(c).result.line, 'Tests 3 passed (3)', 'recomputed after the result arrives');
 n += 2;
 
+// ---- live shapes: calls with fewer fields than the replay data has
+assert.deepEqual({...brief(bash('npm test', {st: 'pend', inp: ''})).result}, {state: 'pend', line: '执行中'}, 'a running call is "执行中", not "无结果"');
+const fb = brief({name: 'Bash', sum: 'cd ' + P + ' && vendor/bin/phpunit tests/Unit/FooTest.php 2>&1 | tail -5', st: 'ok'});
+assert.equal(fb.kind, 'test', 'only a summary: the action is still recognised');
+assert.deepEqual({...fb.result}, {state: 'none', line: ''}, 'no res field: no result is claimed');
+assert.equal(brief({name: 'Read', sum: P + '/src/a.php', st: 'ok'}).result.line, '', 'a read without res and rlen claims nothing');
+assert.equal(brief({name: 'Bash', sum: 'false', st: 'err'}).result.state, 'err', 'a failure without res is still a failure');
+assert.doesNotThrow(() => { brief({name: 'mcp__x__y', st: 'pend'}); brief({name: '', sum: '', st: 'ok'}); brief({name: 'Bash', st: 'ok'}); brief(null, {says: ''}); }, 'sparse calls do not throw');
+n += 7;
+
 console.log('step brief unit test passed (' + n + ' checks)');

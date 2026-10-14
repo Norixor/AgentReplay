@@ -14,6 +14,7 @@ from collections import defaultdict, deque
 
 import sources
 from common import ts_ms
+from live_brief import CARD_STEPS, card_calls, card_inp, said_text
 from prices import tok_total, zero_tok
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -233,9 +234,9 @@ class Live:
             real = [x for x in calls if not x["waitAgent"]]
             if not real:
                 c = calls[0]
-                return "waiting", {"tool": c["name"], "sum": c["sum"], "desc": c["desc"], "elapsed": now - c["ts"]}
+                return "waiting", self.call_detail(c, now)
             c = min(real, key=lambda x: x["ts"])
-            return "exec", {"tool": c["name"], "sum": c["sum"], "desc": c["desc"], "elapsed": now - c["ts"], "n": len(calls)}
+            return "exec", dict(self.call_detail(c, now), n=len(calls))
         quiet = now - a.last_ts > cfg["idleSec"] * 1000
         if n_children and (a.last_kind == "end" or quiet):
             return "waiting", {"why": "没有在执行的调用，等 %d 个子代理" % n_children}
@@ -244,6 +245,15 @@ class Live:
         if a.last_kind == "end":
             return "idle", {"why": "本轮已结束，等待用户"}
         return "think", {"since": now - a.last_ts}
+
+    @staticmethod
+    def call_detail(c, now):
+        """The running call: tool, description, summary, category and (for long shell commands) the input; see live_brief."""
+        d = {"tool": c["name"], "sum": c["sum"], "desc": c["desc"], "elapsed": now - c["ts"], "cat": c.get("cat") or "other"}
+        inp = card_inp(c)
+        if inp:
+            d["inp"] = inp
+        return d
 
     def alerts(self, a, now, cfg, state):
         out = []
@@ -312,8 +322,19 @@ class Live:
                 "start": a.start, "runMs": max(0, now - a.start) if a.start else None, "steps": steps, "stepsApprox": a.approx,
                 "ctx": a.ctx, "ctxLimit": limit, "state": state, "detail": det, "lastTs": a.last_ts, "done": a.done, "doneTs": a.done_ts if a.done else 0,
                 "tok": dict(a.tok), "tokTotal": tok_total(a.tok), "costWin": sum(v[0] for v in a.buckets.values()), "spm": spm, "brief": self.briefs.get(a.tu) if a.tu else None,
-                "recent": [{k: r[k] for k in ("n", "ts", "tool", "sum", "why", "st", "dur")} for r in a.recent][::-1],
+                "recent": self.recent_of(a), "said": said_text(a) if state in ("think", "idle", "waiting") else "",
                 "alerts": self.alerts(a, now, cfg, state), "cost15": c15, "tok15": t15}
+
+    @staticmethod
+    def recent_of(a):
+        """Newest step first; the newest CARD_STEPS carry their calls (category, summary, input, result) for the card briefs."""
+        out = []
+        for i, r in enumerate(list(a.recent)[::-1]):
+            o = {k: r[k] for k in ("n", "ts", "tool", "sum", "why", "st", "dur")}
+            if i < CARD_STEPS:
+                o["calls"] = card_calls(r)
+            out.append(o)
+        return out
 
     def snapshot(self, now):
         cfg = config()

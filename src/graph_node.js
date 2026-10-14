@@ -49,15 +49,17 @@ function grSet(el, key, val, apply) {
   return true;
 }
 
-/* What the "current call" area shows for each state: [tool label, description, elapsed label, elapsed ms | null, extra]. */
+/* What the "current call" area shows for each state: [kind label, action, elapsed label, elapsed ms | null, extra]
+ * (the action comes from the call brief, see live_brief.js; the model's own description of the call is the extra). */
 function grCallInfo(c) {
   const d = c.detail || {};
   if (c.state === 'exec' || (c.state === 'waiting' && d.tool)) {
-    return [d.tool || '', d.desc || d.sum || '', '已执行', d.elapsed, d.n > 1 ? d.n + ' 个调用同时在跑' : (d.desc && d.sum && d.sum !== d.desc ? d.sum : '')];
+    const n = lbNowBrief(c);
+    return [n.kindLabel, n.action, '已执行', d.elapsed, d.n > 1 ? d.n + ' 个调用同时在跑' : (d.desc || '')];
   }
-  if (c.state === 'think') return ['', '模型正在思考或输出', '距上次写入', d.since, ''];
+  if (c.state === 'think') { const said = lbSaid(c, 70); return ['', said ? '最近说明：' + said : '模型正在思考或输出', '距上次写入', d.since, '']; }
   if (c.state === 'done') return ['', c.doneTs ? '于 ' + fmtClock(c.doneTs) + ' 交回' : '已交回', '', null, ''];
-  return ['', d.why || '', '', null, ''];
+  return ['', d.why || lbSaid(c, 70), '', null, ''];
 }
 
 function grStepsText(c) { return c.steps + (c.stepsApprox ? '+' : '') + ' 步 · ' + (c.spm == null ? '—' : c.spm) + ' 步/分'; }
@@ -118,9 +120,9 @@ function grUpdateNode(el, n, ageMs) {
     r.ctxt.textContent = '上下文 ' + fmtTok(c.ctx) + '/' + fmtTok(lim) + ' · ' + Math.round(pv * 100) + '%';
     r.ctxt.title = pv >= 1 ? '已过压缩点' : '距压缩点还有 ' + fmtTok(Math.max(0, lim - c.ctx));
   });
-  const rec = (c.recent || []).slice(0, 3);
-  grSet(el, 'mini', rec.map(x => x.n + x.ts + x.tool + x.st + (x.why || x.sum)).join('|'), () => {
-    r.mini.innerHTML = rec.length ? rec.map(x => '<li class="rs-' + esc(x.st) + '"><time class="num">' + fmtClock(x.ts) + '</time><span class="gr-mtool">' + esc(clip(x.tool, 10)) + '</span><span class="gr-mwhy">' + esc(x.why || x.sum || '（无摘要）') + '</span></li>').join('') : '<li class="dim">还没有步骤</li>';
+  const rec = (c.recent || []).slice(0, 3), lines = rec.map(lbStepLine);
+  grSet(el, 'mini', rec.map((x, i) => x.n + x.ts + x.st + lines[i].join('~')).join('|'), () => {
+    r.mini.innerHTML = rec.length ? rec.map((x, i) => '<li class="rs-' + esc(x.st) + '"><time class="num">' + fmtClock(x.ts) + '</time><span class="gr-mtool">' + esc(clip(lines[i][0], 10)) + '</span><span class="gr-mwhy" title="' + esc(lines[i][1] + (lines[i][2] ? ' · ' + lines[i][2] : '')) + '">' + esc(lines[i][1] || '（无摘要）') + (lines[i][2] ? ' · ' + esc(lines[i][2]) : '') + '</span></li>').join('') : '<li class="dim">还没有步骤</li>';
   });
   grSet(el, 'al', c.alerts.map(a => a.k + a.text).join('|'), () => {
     r.alerts.innerHTML = c.alerts.map(a => '<span class="al al-' + esc(a.k) + '" title="' + esc(a.text) + '">⚠ ' + esc(GR_ALERT_TXT[a.k] || a.k) + '</span>').join('');

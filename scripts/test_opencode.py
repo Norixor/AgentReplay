@@ -222,6 +222,8 @@ def live_cases(case, tmp):
         card = lv.snapshot(t + 1000)["cards"][0]
         case("live: a new response is a step and its running call is pending", main.steps == 4 and p1 in main.pending and card["state"] == "exec" and card["detail"]["tool"] == "bash"
              and card["steps"] == 4)
+        k = card["recent"][0]["calls"]
+        case("live: the running call is on the card with its category and no result yet", card["detail"].get("cat") and k[0]["st"] == "pend" and k[0]["res"] == "")
         tok0, cost0 = dict(main.tok), money(main)
 
         def finish_msg(d):
@@ -237,6 +239,8 @@ def live_cases(case, tmp):
         case("live: tokens and amount of the completed message are added once (out includes reasoning)",
              main.tok["in"] - tok0["in"] == 700 and main.tok["cr"] - tok0["cr"] == 1000 and main.tok["out"] - tok0["out"] == 100 and near(money(main) - cost0, want["cost"]))
         case("live: after a final response the card waits for the user", lv.snapshot(t + 6000)["cards"][0]["state"] == "idle")
+        k = lv.snapshot(t + 6000)["cards"][0]["recent"][0]["calls"][0]
+        case("live: the finished call carries its result on the card", k["st"] == "ok" and "woke" in k["res"] and k["dur"] == 4400)
         tok1, cost1 = dict(main.tok), money(main)
         db1.rewrite("message", m1, lambda d: None, t + 5500)   # the same rows written again
         db1.rewrite("part", p1, lambda d: None, t + 5500)

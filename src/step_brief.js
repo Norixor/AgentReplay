@@ -569,8 +569,10 @@ function sbOutText(c) {
 function sbResult(c, kind, root) {
   if (!c) return {state: 'none', line: ''};
   if (c.st === 'hook') return {state: 'err', line: sbClip('被钩子拦截' + (c.hook ? '：' + String(c.hook).trim().split('\n')[0] : ''), 100)};
-  if (c.st === 'pend') return {state: 'pend', line: c.bg ? '后台运行中' : '无结果'};
+  if (c.st === 'pend') return {state: 'pend', line: c.bg ? '后台运行中' : '执行中'};
   const state = c.st === 'err' ? 'err' : 'ok';
+  // a call shape without any result field (a live step older than the snapshot's brief window): nothing is known, so nothing is claimed
+  if (c.res === undefined && state === 'ok') return {state: 'none', line: ''};
   const {text, exit} = sbOutText(c);
   const raw = text.split('\n');
   if (/^(Command running in background|.*moved to the background)/.test(raw.find(l => l.trim()) || '')) return {state, line: /timeout/.test(text) ? '超时，转入后台' : '已转入后台运行'};

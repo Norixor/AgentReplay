@@ -8,7 +8,8 @@ import source_claude
 from common import classify_bash, merge_kind, ts_ms
 from prices import add_tok, tok_total, zero_tok
 from live import WINDOW_MS, AgentState
-from parse import categorize, classify_text, family, summarize
+from live_brief import res_text, tool_inp
+from parse import categorize, classify_text, family, flat, summarize
 
 _ID = re.compile(rb'"id":"(msg_\w+)","type":"message"')
 _HOOK = re.compile(r"\s*PreToolUse:\S+ hook error:")
@@ -137,7 +138,9 @@ class ClaudeFeed:
         bg = bool(inp.get("run_in_background")) if name in ("Bash", "Agent", "Task") else False
         call = {"id": b.get("id"), "name": name, "sum": summarize(name, inp)[:240], "desc": str(inp.get("description") or "")[:200], "ts": ts,
                 "cat": cat, "bg": bg, "waitAgent": name in ("Agent", "Task") and not bg or name == "TaskOutput",
-                "poll": name == "Bash" and cat == "wait", "cmd": (inp.get("command") or "") if name == "Bash" else "", "cwd": st.cwd, "step": step}
+                "poll": name == "Bash" and cat == "wait", "cmd": (inp.get("command") or "") if name == "Bash" else "", "cwd": st.cwd, "step": step,
+                "st": "pend", "dur": 0, "res": "", "rlen": 0}
+        call["inp"] = tool_inp(inp, call["cmd"])
         if call["poll"] and not bg:
             st.poll_ts = ts
         st.pending[call["id"]] = call
@@ -188,6 +191,8 @@ class ClaudeFeed:
         dur = max(0, ts - call["ts"])
         step = call["step"]
         text = _flat(b.get("content"))
+        full = flat(b.get("content"))
+        call["res"], call["rlen"], call["dur"] = res_text(full), len(full), dur
         if b.get("is_error"):
             if _HOOK.match(text):
                 call["st"] = "hook"

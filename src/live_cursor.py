@@ -18,9 +18,10 @@ import cursor_tail
 from common import merge_kind
 from cursor_calls import AGENT_TOOLS, SHELL_TOOLS, agent_id, agent_kind, args_of, is_finished, make_call, response_key, same_response
 from live import WINDOW_MS, AgentState
+from live_brief import STORE_RES, tool_inp
 from parse_cursor import model_of
 
-CTX = {"out": 240, "inp": 240}   # caps for make_call; the live view shows one-line summaries only
+CTX = {"out": STORE_RES, "inp": 240}   # caps for make_call; the input is rebuilt from the arguments (tool_inp)
 STALE_RECHECK_S = 60             # how often a sub-agent chat that looked old is looked at again
 KNOWN_MAX = 6000
 
@@ -171,7 +172,7 @@ class CursorFeed:
         step = grp["step"]
         call = {"id": bid, "name": name, "sum": c0["sum"][:240], "desc": c0["desc"][:200], "ts": ts, "cat": c0["cat"], "bg": False,
                 "waitAgent": agent, "poll": c0["cat"] == "wait" and not agent and bool(cmd), "cmd": cmd, "cwd": st.cwd, "step": step,
-                "st": "pend", "agent": ""}
+                "st": "pend", "agent": "", "inp": tool_inp(both, cmd), "res": "", "rlen": 0, "dur": 0}
         grp["mcid"] = grp["mcid"] or mcid
         grp["calls"] += 1
         step["calls"].append(call)
@@ -208,6 +209,7 @@ class CursorFeed:
         st, lv = self.st, self.lv
         st.pending.pop(call["id"], None)
         step = call["step"]
+        call["res"], call["rlen"], call["dur"] = c0["res"], c0["rlen"], c0["dur"]
         if end is None:
             self.await_end.append(call)
         else:

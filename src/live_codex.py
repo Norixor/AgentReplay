@@ -6,10 +6,11 @@ import threading
 
 import prices
 import source_codex
-from codex_calls import _HOOK, SHELL_TOOLS, _bad_exit, _desc, _short, _summary, _tool_cat, nested_calls
+from codex_calls import _HOOK, _SCRIPT_HEAD, SHELL_TOOLS, _bad_exit, _desc, _short, _summary, _tool_cat, nested_calls
 from codex_scan import content_text
 from common import merge_kind, ts_ms
 from live import WINDOW_MS, AgentState
+from live_brief import res_text, tool_inp
 
 _HDR = re.compile(r'^\{"timestamp":"([^"]+)","ordinal":(\d+),"type":"(\w+)","payload":\{(?:"type":"(\w+)")?')
 _WAIT_NAMES = {"wait_agent", "wait", "wait_threads"}
@@ -169,7 +170,8 @@ class CodexFeed:
         desc = _desc(args, nested, [], raw)[:200]
         wait = bool(names) and all(_short(n) in _WAIT_NAMES for n in names)
         call = {"id": p.get("call_id") or p.get("id"), "name": shown, "sum": summ, "desc": desc, "ts": ts, "cat": cat, "bg": False,
-                "waitAgent": wait, "poll": cat == "wait" and not wait and bool(cmd), "cmd": cmd, "cwd": st.cwd}
+                "waitAgent": wait, "poll": cat == "wait" and not wait and bool(cmd), "cmd": cmd, "cwd": st.cwd,
+                "st": "pend", "dur": 0, "res": "", "rlen": 0, "inp": tool_inp(first, cmd)}
         if st.cur is None:
             st.new_step(ts)
             st.cur["n"] = st.steps
@@ -198,6 +200,7 @@ class CodexFeed:
         text = content_text(p.get("output"))
         step = call["step"]
         step["dur"] = max(step["dur"], max(0, ts - call["ts"]))
+        call["dur"], call["res"], call["rlen"] = max(0, ts - call["ts"]), res_text(_SCRIPT_HEAD.sub("", text)), len(text)
         bad = text.startswith("Script failed") or _bad_exit(text)
         hook = bool(text) and bool(_HOOK.search(text[:300]))
         st.last_kind = "result"

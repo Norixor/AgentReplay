@@ -399,6 +399,8 @@ def live_cases():
              main.steps == 1 and main.prefix_steps >= 1 and main.approx and card["stepsApprox"] is True and len(main.step_ts) == 1)
         case("a call without an outcome is pending: the card shows it executing, with its description",
              list(main.pending) == ["m7"] and card["state"] == "exec" and card["detail"]["tool"] == "run_terminal_command_v2" and card["detail"]["desc"] == "run the build")
+        k = card["recent"][0]["calls"]
+        case("the running call has a category in the detail and a pend call with its summary on the step", card["detail"].get("cat") and [x["st"] for x in k] == ["ok", "pend"] and k[0]["res"] == "print(1)" and k[1]["res"] == "")
         case("model, effort, context size and Cursor's own limit", card["model"] == "model-x" and card["effort"] == "medium" and card["ctx"] == 7000 and card["ctxLimit"] == 256000)
         case("user message becomes an event", any(e["k"] == "user" and e["text"] == "work now" for e in snap["events"]))
         case("no tokens and no amounts anywhere in the snapshot, nothing listed as unpriced",
@@ -410,6 +412,8 @@ def live_cases():
         card = lv.snapshot(W + 5000)["cards"][0]
         case("the finished message resolves the pending call in place, without a second step",
              not main.pending and main.steps == 1 and card["state"] == "think" and card["recent"][0]["dur"] == 2100 and card["recent"][0]["st"] == "ok")
+        k = card["recent"][0]["calls"][1]
+        case("the finished call carries its result and duration on the card", k["st"] == "ok" and k["res"] == "ok" and k["dur"] == 2100)
         row = db.con.execute("SELECT value FROM cursorDiskKV WHERE key = ?", ("bubbleId:%s:m7" % M,)).fetchone()[0]
         db.put("bubbleId:%s:m7" % M, row)  # the same message written again
         db.put("composerData:" + M, db._composer[M])

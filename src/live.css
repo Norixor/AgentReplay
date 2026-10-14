@@ -13,11 +13,12 @@
 .lnow{background:var(--code);border-radius:6px;padding:6px 10px;font-size:13px;display:flex;flex-direction:column;gap:2px}
 .lnow .lel{font-size:12px;color:var(--dim)}
 .lrecent{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:12px}
-.lrecent li{display:grid;grid-template-columns:62px auto minmax(0,1fr) auto;gap:6px;align-items:start}
+.lrecent li{display:grid;grid-template-columns:62px 74px minmax(0,1fr);gap:6px;align-items:start}
 .lrecent time{color:var(--dim);text-align:left}
 .lrecent .tool{max-width:96px}
 .rtx{display:flex;flex-direction:column;min-width:0}.rwhy{color:var(--dim)}
-.lrecent li.rs-err .rtx,.lrecent li.rs-hook .rtx{color:var(--alert)}
+.lrecent .sb-kind{line-height:18px}.lrecent .sb-res{font-size:12px}
+.lnow-h{display:flex;gap:8px;align-items:flex-start;min-width:0}.lnow-h .sb-kind{flex:none;line-height:20px}.lnow-h .sb-act{flex:1;min-width:0;-webkit-line-clamp:3}
 .lctx{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--dim)}
 .ctxbar{height:8px;border-radius:4px;background:var(--code);overflow:hidden}
 .ctxbar i{display:block;height:100%;background:var(--good);border-radius:4px}

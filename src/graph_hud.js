@@ -101,11 +101,17 @@ function grTipHtml(key) {
   const c = o.n.card, d = c.detail || {};
   let h = '<div class="gr-th"><b>' + esc(c.id === 'main' ? '主代理' : c.desc) + '</b> · ' + esc(GR_STATE_TXT[c.state] || c.state) + '</div>';
   if (c.state === 'exec' || (c.state === 'waiting' && d.tool)) {
-    h += '<h5>当前调用 · 已执行 ' + fmtDur((d.elapsed || 0) + age) + '</h5><div class="gr-tl"><b>' + esc(d.tool || '') + '</b> ' + esc(d.desc || '') + '</div>' + (d.sum ? '<pre>' + esc(d.sum) + '</pre>' : '');
+    const n = lbNowBrief(c);
+    h += '<h5>当前调用 · 已执行 ' + fmtDur((d.elapsed || 0) + age) + '</h5><div class="gr-tl"><b>' + esc(n.kindLabel) + '</b> ' + esc(n.action) + '</div>' + (d.desc ? '<div class="gr-tl dim">原因：' + esc(d.desc) + '</div>' : '') +
+      (d.inp || d.sum ? '<pre>' + esc(clip(d.inp || d.sum, 400)) + '</pre>' : '');
   } else if (d.why) h += '<div class="gr-tl dim">' + esc(d.why) + '</div>';
+  else if (c.said) h += '<div class="gr-tl dim">最近说明：' + esc(lbSaid(c, 200)) + '</div>';
   const rec = c.recent || [];
-  h += '<h5>最近 ' + rec.length + ' 步</h5>' + (rec.length ? '<ol class="gr-trec">' + rec.map(r => '<li class="rs-' + esc(r.st) + '"><time class="num">' + fmtClock(r.ts) + '</time> <b>' + esc(r.tool) + '</b> ' + esc(clip(r.sum, 160)) +
-    (r.why ? '<div class="dim">原因：' + esc(clip(r.why, 160)) + '</div>' : '') + '</li>').join('') + '</ol>' : '<div class="dim">还没有步骤</div>');
+  h += '<h5>最近 ' + rec.length + ' 步</h5>' + (rec.length ? '<ol class="gr-trec">' + rec.map(r => {
+    const l = lbStepLine(r);
+    return '<li class="rs-' + esc(r.st) + '"><time class="num">' + fmtClock(r.ts) + '</time> <b>' + esc(l[0]) + '</b> ' + esc(clip(l[1], 160)) + (l[2] ? ' <span class="bad">· ' + esc(clip(l[2], 100)) + '</span>' : '') +
+      (r.why ? '<div class="dim">原因：' + esc(clip(r.why, 160)) + '</div>' : '') + '</li>';
+  }).join('') + '</ol>' : '<div class="dim">还没有步骤</div>');
   return h;
 }
 

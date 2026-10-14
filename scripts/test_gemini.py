@@ -361,9 +361,14 @@ def live_cases(case):
         lv.refresh(now)
         state = lv.agent_state(main, now, live.config(), 0)
         case("a call with a non-final status is executing", state[0] == "exec" and state[1]["tool"] == "run_shell_command" and len(main.pending) == 1)
+        case("the running call's detail carries its category", state[1].get("cat") == "wait")
         append(main_p, gem("g3", 44, "", {"input": 1700, "output": 5}, calls=[tool("run_shell_command", {"command": "sleep 90"}, 80, 0, output="done", id="call-g3")]))
         lv.refresh(now + 40_000)
         case("the final copy ends it without a second step or a second token count", not main.pending and main.steps == 3 and main.ctx == 1700)
+        card = lv.snapshot(now + 40_000)["cards"][0]
+        k = card["recent"][0]["calls"]
+        case("the card step carries the finished call once, with its result and status", len(k) == 1 and k[0]["name"] == "run_shell_command" and k[0]["st"] == "ok" and "done" in k[0]["res"])
+        case("the card carries the agent's latest note", card["said"] == "Done: three files.")
 
         # an unfinished last line is kept for the next read
         half = json.dumps(gem("g4", 90, "late", {"input": 1800, "output": 7}), separators=(",", ":"))

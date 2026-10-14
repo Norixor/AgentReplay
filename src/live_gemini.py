@@ -22,10 +22,11 @@ from common import merge_kind
 from gemini_calls import SHELL_TOOLS, make_call
 from gemini_scan import chats_dir, is_context, to_ms, user_text
 from live import WINDOW_MS, AgentState, config
+from live_brief import STORE_RES, tool_inp
 
 _GEM_ID = re.compile(rb'^\{"id":"([^"]+)","timestamp":"[^"]+","type":"gemini"', re.M)
 _DONE = (b'"name":"complete_task"', b'{"$set":{"summary"')
-_CALL_CTX = {"out": 240, "inp": 200}   # make_call only needs the caps of the text it keeps; the live card shows neither
+_CALL_CTX = {"out": STORE_RES, "inp": 200}   # the result is kept for the card brief; the input is rebuilt from the arguments (tool_inp)
 _KEEP = 6000                           # accounted messages / ids remembered per agent for dedupe and rewinds
 
 
@@ -273,10 +274,16 @@ class GeminiFeed:
             if desc and not step["why"]:
                 step["why"] = desc
             cmd = str(args.get("command") or "") if c["name"].split("__")[-1] in SHELL_TOOLS else ""
+            # one entry per call, shared by the step (card briefs) and the pending map (current call): messages are re-fed as they grow
+            ent = next((x for x in step["calls"] if x["id"] == cid), None)
+            if ent is None:
+                ent = {"id": cid, "name": c["name"], "sum": c["sum"][:240], "desc": desc, "ts": ts, "cat": c["cat"], "bg": False,
+                       "waitAgent": c["cat"] == "agent", "poll": False, "cmd": cmd, "cwd": st.cwd, "step": step, "inp": tool_inp(args, cmd)}
+                step["calls"].append(ent)
+            ent.update(st=c["st"], dur=c["dur"], res=c["res"], rlen=c["rlen"])
             if c["st"] == "pend":
                 pending = True
-                st.pending[cid] = {"id": cid, "name": c["name"], "sum": c["sum"][:240], "desc": desc, "ts": ts, "cat": c["cat"], "bg": False,
-                                   "waitAgent": c["cat"] == "agent", "poll": False, "cmd": cmd, "cwd": st.cwd, "step": step}
+                st.pending[cid] = ent
                 continue
             st.pending.pop(cid, None)
             if cid in self.done_calls:

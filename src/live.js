@@ -65,15 +65,22 @@ function stateBadge(c) {
 const cardLastTs = c => (c.recent && c.recent[0] ? c.recent[0].ts : 0);
 
 function cardNow(c) {
-  const d = c.detail || {};
+  const d = c.detail || {}, ts = cardLastTs(c);
   if (c.state === 'exec' || (c.state === 'waiting' && d.tool)) {
-    const what = esc(d.tool || '') + (d.desc ? ' · ' + esc(d.desc) : '') + (d.sum && d.sum !== d.desc ? ' · <span class="mono">' + esc(d.sum) + '</span>' : '');
-    return '<div class="lnow lo-click"' + loAttr({agent: c.id, ts: cardLastTs(c), pend: 1, tool: d.tool || ''}) + ' title="' + esc((d.tool || '') + ' ' + (d.desc || '') + ' ' + (d.sum || '') + '\n点击查看这一步的详情') + '"><span class="clamp-2">' + what + '</span><span class="lel">已执行 <b class="tick" data-ms="' + d.elapsed + '">' + fmtDur(d.elapsed) + '</b>' +
-      (d.n > 1 ? ' · 同时 ' + d.n + ' 个调用' : '') + '</span></div>';
+    const n = lbNowBrief(c);
+    return '<div class="lnow lo-click"' + loAttr({agent: c.id, ts, pend: 1, tool: d.tool || ''}) + ' title="' + esc(n.tip + '\n点击查看这一步的详情') + '"><span class="lnow-h"><span class="sb-kind sb-c-' + esc(n.color) + '"><i aria-hidden="true"></i>' + esc(n.kindLabel) + '</span>' +
+      '<span class="sb-act">' + esc(n.action) + '</span></span>' + (d.desc ? '<span class="rwhy sb-act">原因：' + esc(d.desc) + '</span>' : '') +
+      '<span class="lel">已执行 <b class="tick" data-ms="' + d.elapsed + '">' + fmtDur(d.elapsed) + '</b>' + (d.n > 1 ? ' · 同时 ' + d.n + ' 个调用' : '') + '</span></div>';
   }
-  if (c.state === 'think') return '<div class="lnow dim' + (cardLastTs(c) ? ' lo-click"' + loAttr({agent: c.id, ts: cardLastTs(c)}) + ' title="点击查看最近一步的详情' : '') + '">最后一条是工具结果或用户消息，模型正在思考或输出（<b class="tick" data-ms="' + d.since + '">' + fmtDur(d.since) + '</b> 前）</div>';
+  const open = ts ? ' lo-click"' + loAttr({agent: c.id, ts}) + ' title="点击查看最近一步的详情' : '';
+  if (c.state === 'think') {
+    const said = lbSaid(c, 160);
+    return '<div class="lnow dim' + open + '">' + (said ? '<span class="sb-act" title="' + esc(firstLine(c.said || '')) + '">最近说明：' + esc(said) + '</span>' : '') +
+      '<span class="lel">模型正在思考或输出（<b class="tick" data-ms="' + d.since + '">' + fmtDur(d.since) + '</b> 前写入）</span></div>';
+  }
   if (d.why) return '<div class="lnow dim">' + esc(d.why) + '</div>';
-  return '';
+  const said = lbSaid(c, 160);
+  return said ? '<div class="lnow dim"><span class="sb-act" title="' + esc(firstLine(c.said || '')) + '">最近说明：' + esc(said) + '</span></div>' : '';
 }
 
 function ctxBar(c) {
@@ -85,10 +92,11 @@ function ctxBar(c) {
 
 function recentList(c) {
   if (!c.recent.length) return '<div class="dim lrecent">还没有步骤。</div>';
-  return '<ul class="lrecent">' + c.recent.slice(0, 3).map(r => '<li class="lo-click rs-' + esc(r.st) + '"' + loAttr({agent: c.id, ts: r.ts}) + ' title="点击查看这一步的详情"><time class="num">' + fmtClock(r.ts) + '</time><span class="tool cat-other">' + esc(clip(r.tool, 24)) + '</span>' +
-    '<span class="rtx"><span class="clamp-2" title="' + esc((r.sum || '') + (r.why ? '\n原因：' + r.why : '')) + '">' + esc(r.sum || '（无摘要）') + '</span>' +
-    (r.why ? '<span class="rwhy clamp-2">原因：' + esc(r.why) + '</span>' : '') + '</span>' +
-    '<span class="rst">' + (r.st === 'err' ? '<span class="bad">失败</span>' : r.st === 'hook' ? '<span class="bad">拦截</span>' : '') + '</span></li>').join('') + '</ul>';
+  const now = LV.data ? LV.data.now : 0;
+  return '<ul class="lrecent">' + c.recent.slice(0, 3).map(r => {
+    const h = lbStepHTML(r, now);
+    return '<li class="lo-click rs-' + esc(r.st) + '"' + loAttr({agent: c.id, ts: r.ts}) + ' title="点击查看这一步的详情"><time class="num">' + fmtClock(r.ts) + '</time>' + h.kind + '<span class="rtx">' + h.body + '</span></li>';
+  }).join('') + '</ul>';
 }
 
 function liveCard(c) {

@@ -17,11 +17,12 @@ import parse_opencode
 import source_opencode
 from common import merge_kind
 from live import WINDOW_MS, AgentState
+from live_brief import STORE_RES, tool_inp
 from opencode_calls import make_call
 from opencode_scan import model_id
 from prices import add_tok, tok_total, zero_tok
 
-CTX = {"out": 300, "inp": 300}   # caps for make_call: the live view shows no results or inputs
+CTX = {"out": STORE_RES, "inp": 300}   # caps for make_call; the input is rebuilt from the arguments (tool_inp)
 OPEN = parse_opencode.DONE_REASONS_OPEN
 MAX_MSGS = 300                   # messages kept per agent (older ones are dropped, their step and money stay counted)
 REPROBE_MS = 30_000
@@ -187,13 +188,13 @@ class OpencodeFeed:
         call = self.calls.get(pid)
         new = call is None
         if new:
-            call = self.calls[pid] = {"id": pid, "bg": False, "step": step, "done": False, "_sid": "", "_in": {}, "dispatched": False}
+            call = self.calls[pid] = {"id": pid, "bg": False, "step": step, "done": False, "_sid": "", "_in": {}, "dispatched": False, "st": "pend"}
             self.msg_calls.setdefault(mid, []).append(pid)
             step["calls"].append(call)
         old_sid = call["_sid"]
         call.update(name=mk["name"], sum=mk["sum"][:240], desc=mk["desc"][:200], ts=mk["ts"], cat=mk["cat"], waitAgent=mk["cat"] == "agent",
                     poll=mk["cat"] == "wait" and bool(cmd), cmd=cmd, cwd=(m["d"].get("path") or {}).get("cwd") or st.cwd,
-                    _sid=mk.get("_sid", ""), _in=mk.get("_in") or {})
+                    _sid=mk.get("_sid", ""), _in=mk.get("_in") or {}, inp=tool_inp(inp, cmd), res=mk["res"], rlen=mk["rlen"], dur=mk["dur"])
         if step["calls"][0] is call or step["tool"] in ("", "回复"):
             step["tool"], step["sum"] = call["name"], call["sum"]
         if not step["why"]:

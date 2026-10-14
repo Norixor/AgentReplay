@@ -15,6 +15,7 @@
 .sb-res{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;font-size:12px;line-height:1.4;color:var(--dim)}
 .sb-res.sb-err{color:var(--bad);font-weight:600}
 .sb-res.sb-pend{font-style:italic}
+.sb-run{color:var(--accent);font-weight:600}.sb-run+small{margin-left:4px;color:var(--dim)}
 .c-st.sb-st .bgst+.sb-res,.c-st.sb-st small+.sb-res{margin-top:2px}
 @media (max-width:900px){
   .row.sb-grid{grid-template-columns:1fr auto auto;grid-template-areas:"time tool tool" "why why why" "cmd cmd cmd" "st st st" "dur cost ctx"}

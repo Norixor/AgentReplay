@@ -81,7 +81,7 @@ function statusHTML(c) {
   if (!c) return '<span class="ok">回复</span>';
   if (c.st === 'hook') return '<span class="bad">被钩子拦截</span>';
   if (c.st === 'err') return '<span class="bad">失败</span>';
-  if (c.st === 'pend') return '<span class="dim">无结果</span>';
+  if (c.st === 'pend') return c.bg ? '<span class="bgst">后台</span>' : '<span class="sb-run">执行中</span>' + (c.ts ? '<small>已 ' + fmtDur(Math.max(0, Date.now() - c.ts)) + '</small>' : '');
   if (c.bg) {
     let t = '<span class="bgst">后台</span>';
     if (c.bgDone) t += '<small>' + fmtClock(c.bgDone) + ' 完成' + (c.notif && c.notif.status !== 'completed' ? '·' + esc(c.notif.status) : '') + '</small>';
@@ -92,6 +92,7 @@ function statusHTML(c) {
 
 function durHTML(c) {
   if (!c) return '';
+  if (c.st === 'pend' && !c.bg) return '<span class="dim">进行中</span>';
   if (c.bg) return c.bgDur != null ? '<span class="' + (c.bgLong ? 'long' : '') + '">' + fmtDur(c.bgDur) + '</span><small>后台</small>' : '';
   return '<span class="' + (c.long ? 'long' : '') + '">' + (c.dur < 500 ? '<1 秒' : fmtDur(c.dur)) + '</span>';
 }
@@ -108,7 +109,7 @@ function briefActionHTML(b) {
 }
 function briefResultHTML(b, c) {
   const r = b.result;
-  if (!c || !r.line) return statusHTML(c);
+  if (!c || !r.line || (c.st === 'pend' && !c.bg)) return statusHTML(c);
   return (c.bg ? statusHTML(c) : '') + '<span class="sb-res sb-' + r.state + '">' + esc(r.line) + '</span>';
 }
 
